@@ -1,0 +1,16 @@
+name: Cron — Kunlik reklama sinxroni
+
+# Har kuni 00:00 UTC = 05:00 Asia/Tashkent — kechagi reklama natijalarini sinxronlaydi.
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch: {} # Actions tab'dan qo'lda test qilish uchun
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ad-sync endpointini chaqirish
+        run: |
+          curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://alif-crm-production.up.railway.app/api/cron/ad-sync"

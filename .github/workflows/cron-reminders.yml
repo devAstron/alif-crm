@@ -1,0 +1,17 @@
+name: Cron — Qayta aloqa eslatmalari
+
+# Har ~15 daqiqada qayta aloqa eslatmalari endpointini chaqiradi.
+# GitHub Actions UTC'da ishlaydi. Jadval bir oz kechikishi mumkin (normal holat).
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {} # Actions tab'dan qo'lda test qilish uchun
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reminders endpointini chaqirish
+        run: |
+          curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://alif-crm-production.up.railway.app/api/cron/reminders"
