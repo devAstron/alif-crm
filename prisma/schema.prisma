@@ -1,0 +1,542 @@
+// ============================================================
+//  ALIF CRM — Prisma sxemasi
+//  Online kurslar Sales CRM (Alif Academy Arab tili)
+//  Pul qiymatlari BigInt (butun so'm) sifatida saqlanadi.
+//  Vaqtlar UTC'da saqlanadi, UI'da Asia/Tashkent'da ko'rsatiladi.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- Enumlar ----------------
+
+enum Role {
+  ADMIN
+  OPERATOR
+  TARGETOLOG
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  SELECT
+  MULTISELECT
+  DATE
+  CHECKBOX
+}
+
+enum TaskStatus {
+  PENDING
+  DONE
+}
+
+enum TaskType {
+  MANUAL
+  CALLBACK
+}
+
+enum PaymentType {
+  ONLINE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum InquirySource {
+  TARGET
+  INSTAGRAM_DIRECT
+  INSTAGRAM_COMMENT
+  REFERRAL
+  OTHER
+}
+
+enum NotificationType {
+  TASK_NEW
+  TASK_DUE
+  LEAD_ASSIGNED
+  LEAD_REASSIGNED
+  PAYMENT
+  PARTIAL_PAYMENT
+  SYSTEM
+}
+
+enum CapiEventName {
+  QUALIFIED_LEAD
+  PURCHASE
+}
+
+enum CapiStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
+// ---------------- Foydalanuvchi & Sessiya ----------------
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  login        String   @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Telegram bog'lash (verification flow)
+  telegramLinkCode          String?   @unique
+  telegramLinkCodeExpiresAt DateTime?
+
+  sessions        Session[]
+  telegramAccount TelegramAccount?
+  assignedLeads   Lead[]           @relation("LeadAssignedTo")
+  deletedLeads    Lead[]           @relation("LeadDeletedBy")
+  comments        Comment[]
+  createdTasks    Task[]           @relation("TaskCreatedBy")
+  assignedTasks   Task[]           @relation("TaskAssignedTo")
+  payments        Payment[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model TelegramAccount {
+  id       String   @id @default(cuid())
+  userId   String   @unique
+  chatId   String   @unique
+  username String?
+  linkedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------- Pipeline & Bosqichlar ----------------
+
+model Pipeline {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stages PipelineStage[]
+  leads  Lead[]
+}
+
+model PipelineStage {
+  id             String   @id @default(cuid())
+  pipelineId     String
+  name           String // O'zbekcha ko'rinadigan nom
+  slug           String // Barqaror machine-readable qiymat (masalan "qualified")
+  color          String   @default("#6b7280")
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  isSystem       Boolean  @default(false) // Tizim bosqichlari o'chirilmaydi
+  // Ushbu bosqichga o'tish uchun majburiy field kalitlari (string[]).
+  // Standart fieldlar: "phone", "name", ...; custom fieldlar: "custom:<slug>"
+  requiredFields Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  leads    Lead[]
+
+  @@unique([pipelineId, slug])
+  @@index([pipelineId])
+}
+
+// ---------------- Lead ----------------
+
+model Lead {
+  id    String @id @default(cuid())
+  title String // Sarlavha: "{manba}: {name}-{phone}"
+
+  // Asosiy ma'lumotlar
+  name        String
+  phone       String
+  secondPhone String? // Ikkinchi raqam
+  autoFbPhone String? // Nomer (avto fb)
+  arabicLevel String? // Arab tilini bilish darajasi
+  activity    String? // Faoliyati
+
+  // CRM fieldlari
+  course        String        @default("Alif Academy Arab tili")
+  tariff        String?
+  age           Int?
+  gender        Gender?
+  city          String?
+  profession    String? // Kasb
+  interestLevel String? // Kursga qiziqish darajasi
+  goal          String? // Maqsadi
+  paymentType   PaymentType   @default(ONLINE)
+  dealAmount    BigInt? // Kelishilgan to'lov summasi (so'm)
+  note          String? // Izoh (dastlabki)
+  inquirySource InquirySource @default(OTHER) // Zayafka manbasi
+
+  // Marketing / attribution
+  externalLeadId String? // Facebook Lead ID
+  adId           String?
+  adsetId        String?
+  campaignId     String?
+  formId         String?
+  campaignName   String?
+  adsetName      String?
+  adName         String?
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  utmContent     String?
+  utmTerm        String?
+  fbc            String? // Facebook Click ID
+  fbp            String?
+  landingPage    String?
+  source         String? // masalan "facebook", "website"
+
+  // Forma qo'shimcha savollari
+  field1 String?
+  field2 String?
+  field3 String?
+
+  cookies Json? // Cookies snapshot
+
+  // Idempotency (bir xil so'rov ikki marta kelsa)
+  idempotencyKey String? @unique
+
+  // Pipeline holati
+  pipelineId     String
+  stageId        String
+  stageChangedAt DateTime @default(now())
+
+  // Biriktirish
+  assignedToId String?
+  assignedAt   DateTime?
+
+  // Rad etish
+  rejectionReasonId String?
+  rejectionNote     String?
+
+  // Qayta aloqa
+  callbackAt DateTime?
+
+  // Qayta ishlash holati (in_progress bosqichida)
+  processingStatus String? // masalan "Telegramdan yozildi", "O'ylab ko'radi"
+
+  // Sifatli lid (bosqich emas — alohida belgi; tugma+checklist orqali)
+  qualifiedAt DateTime? // operator sifatli deb belgilagan vaqt
+
+  // To'lov / CAPI holati
+  paidAt              DateTime? // To'liq to'lov qilingan sana
+  qualifiedLeadSentAt DateTime? // QualifiedLead CAPI yuborilgan (dedup)
+  purchaseSentAt      DateTime? // Purchase CAPI yuborilgan (dedup)
+
+  // Soft delete
+  deletedAt   DateTime?
+  deletedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pipeline          Pipeline           @relation(fields: [pipelineId], references: [id])
+  stage             PipelineStage      @relation(fields: [stageId], references: [id])
+  assignedTo        User?              @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  deletedBy         User?              @relation("LeadDeletedBy", fields: [deletedById], references: [id])
+  rejectionReason   RejectionReason?   @relation(fields: [rejectionReasonId], references: [id])
+  comments          Comment[]
+  tasks             Task[]
+  payments          Payment[]
+  customFieldValues CustomFieldValue[]
+  capiEvents        CapiEvent[]
+  notifications     Notification[]
+
+  @@index([stageId])
+  @@index([assignedToId])
+  @@index([pipelineId])
+  @@index([phone])
+  @@index([source])
+  @@index([campaignId])
+  @@index([adsetId])
+  @@index([adId])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@index([callbackAt])
+  @@index([qualifiedAt])
+}
+
+// ---------------- Custom fieldlar ----------------
+
+model CustomField {
+  id        String          @id @default(cuid())
+  name      String
+  slug      String          @unique
+  type      CustomFieldType
+  options   Json            @default("[]") // SELECT/MULTISELECT variantlari
+  required  Boolean         @default(false)
+  isActive  Boolean         @default(true)
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  values CustomFieldValue[]
+
+  @@index([isActive])
+}
+
+model CustomFieldValue {
+  id      String @id @default(cuid())
+  leadId  String
+  fieldId String
+  value   Json // Turlar bo'yicha: string | number | boolean | string[] | ISO date
+
+  lead  Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  field CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, fieldId])
+  @@index([fieldId])
+}
+
+// ---------------- Izoh, Vazifa, To'lov ----------------
+
+model Comment {
+  id        String   @id @default(cuid())
+  leadId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  lead   Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([leadId])
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  leadId       String
+  createdById  String
+  assignedToId String
+  type         TaskType   @default(MANUAL)
+  dueAt        DateTime
+  note           String?
+  status         TaskStatus @default(PENDING)
+  completedAt    DateTime?
+  reminderSentAt DateTime? // Telegram eslatma yuborilgan vaqt (takrorlanmaslik uchun)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  lead       Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy  User @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  assignedTo User @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+
+  @@index([leadId])
+  @@index([assignedToId, status])
+  @@index([dueAt])
+}
+
+model Payment {
+  id          String      @id @default(cuid())
+  leadId      String
+  amount      BigInt // so'm (butun son)
+  type        PaymentType @default(ONLINE)
+  note        String?
+  proofUrl    String? // Kelajakda chek/fayl biriktirish uchun
+  paidAt      DateTime    @default(now())
+  createdById String
+  createdAt   DateTime    @default(now())
+
+  lead      Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([leadId])
+  @@index([paidAt])
+}
+
+// ---------------- Bildirishnoma ----------------
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  leadId    String?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  data      Json?
+  createdAt DateTime         @default(now())
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+// ---------------- Audit log ----------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String? // System harakatlar uchun null
+  action    String // masalan "lead.stage_change" (constants faylida)
+  entity    String // "Lead", "Payment", ...
+  entityId  String
+  oldData   Json?
+  newData   Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+}
+
+// ---------------- Meta CAPI ----------------
+
+model CapiSettings {
+  id                   String   @id @default("singleton")
+  pixelId              String?
+  accessTokenEnc       String? // AES-256-GCM bilan shifrlangan (hech qachon frontendga chiqmaydi)
+  datasetName          String?
+  testEventCode        String?
+  qualifiedLeadEnabled Boolean  @default(true)
+  purchaseEnabled      Boolean  @default(true)
+  updatedById          String?
+  updatedAt            DateTime @updatedAt
+}
+
+model CapiEvent {
+  id          String        @id @default(cuid())
+  leadId      String
+  eventName   CapiEventName
+  eventId     String        @unique // Deterministik, duplicate oldini oladi
+  status      CapiStatus    @default(PENDING)
+  httpStatus  Int?
+  requestAt   DateTime?
+  response    String? // Xavfsiz javob (token maskalangan)
+  error       String?
+  retryCount  Int           @default(0)
+  lastRetryAt DateTime?
+  payloadSafe Json? // Maskalangan payload ko'rinishi
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([status])
+  @@index([eventName])
+  @@index([createdAt])
+}
+
+// ---------------- Marketing hisoboti (Targetolog qo'lda) ----------------
+
+model MarketingReport {
+  id          String   @id @default(cuid())
+  date        DateTime @unique @db.Date // Kun (Asia/Tashkent)
+  adSpend     BigInt   @default(0) // Reklama sarfi (so'm) — qo'lda kiritiladi
+  manualLeads Int? // Ixtiyoriy: qo'lda kiritilgan lead soni (CRM ham hisoblaydi)
+  note        String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+}
+
+// ---------------- Facebook Marketing API ----------------
+
+model FbSettings {
+  id             String   @id @default("singleton")
+  adAccountId    String? // masalan: act_1234567890
+  accessTokenEnc String? // AES-256-GCM bilan shifrlangan (ads_read tokeni)
+  apiVersion     String   @default("v21.0")
+  enabled        Boolean  @default(false)
+  lastSyncAt     DateTime?
+  lastSyncError  String?
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+}
+
+// Facebook'dan kunlik olingan reklama natijalari (kampaniya/adset/ad kesimida)
+model AdInsight {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date // Kun (Asia/Tashkent)
+  level       String // "campaign" | "adset" | "ad"
+  entityId    String // FB entity id
+  entityName  String?
+  spendUsd    Int      @default(0) // Sarf (USD sent, butun sentda saqlanadi)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  fbLeads     Int      @default(0) // Facebook hisoblagan lead soni
+  usdToUzs    Int      @default(0) // O'sha kundagi kurs (so'm/USD), snapshot
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([date, level, entityId])
+  @@index([date])
+  @@index([level])
+  @@index([entityId])
+}
+
+// USD→UZS kunlik kurs (CBU'dan)
+model FxRate {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  usdToUzs  Int // so'm per 1 USD (butun)
+  source    String   @default("cbu")
+  createdAt DateTime @default(now())
+}
+
+// ---------------- Rad etish sabablari ----------------
+
+model RejectionReason {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leads Lead[]
+}
+
+// "Qayta ishlashda" bosqichi uchun sozlanadigan holat sabablari
+model ProcessingReason {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
