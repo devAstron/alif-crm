@@ -11,6 +11,11 @@ export interface FbInsightRow {
   impressions: number;
   clicks: number;
   fbLeads: number;
+  // Ierarxiya (drill-down uchun): adset/ad qaysi kampaniya/adsetга tegishli
+  campaignId: string | null;
+  campaignName: string | null;
+  adsetId: string | null;
+  adsetName: string | null;
 }
 
 interface FbConfig {
@@ -44,6 +49,12 @@ const LEVEL_NAME_FIELD: Record<AdLevel, string> = {
   adset: "adset_name",
   ad: "ad_name",
 };
+// Har level uchun so'raladigan maydonlar (parent id/name bilan — ierarxiya uchun)
+const LEVEL_FIELDS: Record<AdLevel, string> = {
+  campaign: "campaign_id,campaign_name",
+  adset: "adset_id,adset_name,campaign_id,campaign_name",
+  ad: "ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name",
+};
 
 /**
  * Lead action turlari — MUHIM: Meta bitta leadni bir necha nom ostida qaytaradi
@@ -73,7 +84,7 @@ export async function fetchFbInsights(
   const nameField = LEVEL_NAME_FIELD[level];
   const params = new URLSearchParams({
     level,
-    fields: `${idField},${nameField},spend,impressions,clicks,actions`,
+    fields: `${LEVEL_FIELDS[level]},spend,impressions,clicks,actions`,
     time_range: JSON.stringify({ since, until }),
     time_increment: "all_days",
     limit: "500",
@@ -103,6 +114,10 @@ export async function fetchFbInsights(
         impressions: Number(r.impressions ?? 0),
         clicks: Number(r.clicks ?? 0),
         fbLeads: extractLeadCount(r.actions),
+        campaignId: r.campaign_id ? String(r.campaign_id) : null,
+        campaignName: (r.campaign_name as string) ?? null,
+        adsetId: r.adset_id ? String(r.adset_id) : null,
+        adsetName: (r.adset_name as string) ?? null,
       });
     }
     url = json.paging?.next ?? "";
