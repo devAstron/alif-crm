@@ -44,6 +44,7 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     fullAgg,
     partialAgg,
     opRaw,
+    salesByOp,
     operators,
   ] = await Promise.all([
     prisma.lead.groupBy({ by: ["stageId"], where: rangeWhere, _count: { _all: true } }),
@@ -69,6 +70,13 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     prisma.lead.groupBy({
       by: ["assignedToId", "stageId"],
       where: { assignedToId: { not: null }, assignedAt: { gte: start, lte: end }, deletedAt: null },
+      _count: { _all: true },
+    }),
+    // Operator sotuvlari — paidAt bo'yicha (sotuv qachon yopilgan), joriy bosqichdan
+    // qat'i nazar. Lead PAID'dan keyin "Sinov darsi"ga o'tsa ham sotuv saqlanadi.
+    prisma.lead.groupBy({
+      by: ["assignedToId"],
+      where: { assignedToId: { not: null }, paidAt: { gte: start, lte: end }, deletedAt: null },
       _count: { _all: true },
     }),
     prisma.user.findMany({ where: { role: "OPERATOR" }, select: { id: true, name: true } }),
@@ -117,7 +125,12 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     if (st.slug === STAGE.REJECTED) stat.rejected += n;
     else if (st.slug === STAGE.PAYMENT_PENDING) stat.paymentPending += n;
     else if (st.slug === STAGE.PARTIAL_PAYMENT) stat.partial += n;
-    else if (st.slug === STAGE.PAID) stat.sales += n;
+  }
+  // Sotuvlar — paidAt bo'yicha (joriy bosqichdan qat'i nazar)
+  for (const row of salesByOp) {
+    if (!row.assignedToId) continue;
+    const stat = opMap.get(row.assignedToId);
+    if (stat) stat.sales += row._count._all;
   }
   // Sifatli lid (qualifiedAt) — alohida hisoblanadi
   for (const row of qualifiedByOp) {
