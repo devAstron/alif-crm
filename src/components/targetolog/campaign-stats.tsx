@@ -39,8 +39,8 @@ export function CampaignStatsView({ data }: { data: CampaignStats }) {
     }),
     { leads: 0, qualified: 0, sales: 0, revenue: 0, spendUsd: 0, spendUzs: 0, fbLeads: 0 },
   );
-  const tCpl = totals.leads > 0 ? Math.round(totals.spendUzs / totals.leads) : 0;
-  const tCpa = totals.sales > 0 ? Math.round(totals.spendUzs / totals.sales) : 0;
+  const tCpl = totals.fbLeads > 0 ? Math.round(totals.spendUsd / totals.fbLeads) : 0;
+  const tCpa = totals.sales > 0 ? Math.round(totals.spendUsd / totals.sales) : 0;
   const tRoas = totals.spendUzs > 0 ? totals.revenue / totals.spendUzs : 0;
 
   const levelLabel = level === "campaigns" ? "Kampaniyalar" : level === "adsets" ? "Ad setlar" : "Reklamalar";
@@ -96,8 +96,8 @@ export function CampaignStatsView({ data }: { data: CampaignStats }) {
               <th className="px-3 py-2.5 text-center font-medium">Sifatli</th>
               <th className="px-3 py-2.5 text-center font-medium">Sotuv</th>
               <th className="px-4 py-2.5 text-right font-medium">Tushum</th>
-              {showSpend && <th className="px-3 py-2.5 text-right font-medium" title="Bir lead narxi">CPL</th>}
-              {showSpend && <th className="px-3 py-2.5 text-right font-medium" title="Bir sotuv narxi">CPA</th>}
+              {showSpend && <th className="px-3 py-2.5 text-right font-medium" title="FB lead narxi ($): sarf / FB lead">CPL</th>}
+              {showSpend && <th className="px-3 py-2.5 text-right font-medium" title="Bir sotuv narxi ($): sarf / sotuv">CPA</th>}
               {showSpend && <th className="px-3 py-2.5 text-right font-medium" title="Tushum / sarf">ROAS</th>}
               <th className="px-4 py-2.5 text-center font-medium">Konv.</th>
             </tr>
@@ -121,8 +121,8 @@ export function CampaignStatsView({ data }: { data: CampaignStats }) {
                 <td className="px-3 py-2.5 text-center text-teal-600">{r.qualified}</td>
                 <td className="px-3 py-2.5 text-center font-medium text-green-600">{r.sales}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right text-slate-700">{formatSom(r.revenue)}</td>
-                {showSpend && <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-600">{r.cpl > 0 ? formatSom(r.cpl) : "—"}</td>}
-                {showSpend && <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-600">{r.cpa > 0 ? formatSom(r.cpa) : "—"}</td>}
+                {showSpend && <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-600">{r.cpl > 0 ? usd(r.cpl) : "—"}</td>}
+                {showSpend && <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-600">{r.cpa > 0 ? usd(r.cpa) : "—"}</td>}
                 {showSpend && <td className={`px-3 py-2.5 text-right font-medium ${r.roas >= 1 ? "text-green-600" : r.roas > 0 ? "text-amber-600" : "text-slate-400"}`}>{r.roas > 0 ? `${r.roas.toFixed(1)}x` : "—"}</td>}
                 <td className="px-4 py-2.5 text-center text-brand-700">{r.leads > 0 ? `${r.conversion.toFixed(1)}%` : "—"}</td>
               </tr>
@@ -141,8 +141,8 @@ export function CampaignStatsView({ data }: { data: CampaignStats }) {
                 <td className="px-3 py-3 text-center text-teal-600">{formatNumber(totals.qualified)}</td>
                 <td className="px-3 py-3 text-center text-green-600">{formatNumber(totals.sales)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">{formatSom(totals.revenue)}</td>
-                {showSpend && <td className="whitespace-nowrap px-3 py-3 text-right">{tCpl > 0 ? formatSom(tCpl) : "—"}</td>}
-                {showSpend && <td className="whitespace-nowrap px-3 py-3 text-right">{tCpa > 0 ? formatSom(tCpa) : "—"}</td>}
+                {showSpend && <td className="whitespace-nowrap px-3 py-3 text-right">{tCpl > 0 ? usd(tCpl) : "—"}</td>}
+                {showSpend && <td className="whitespace-nowrap px-3 py-3 text-right">{tCpa > 0 ? usd(tCpa) : "—"}</td>}
                 {showSpend && <td className={`px-3 py-3 text-right ${tRoas >= 1 ? "text-green-600" : "text-amber-600"}`}>{tRoas > 0 ? `${tRoas.toFixed(1)}x` : "—"}</td>}
                 <td className="px-4 py-3 text-center">{totals.leads > 0 ? `${((totals.sales / totals.leads) * 100).toFixed(1)}%` : "—"}</td>
               </tr>

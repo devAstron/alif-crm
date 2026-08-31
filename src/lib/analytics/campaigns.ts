@@ -16,9 +16,9 @@ export interface AdStatRow {
   fbLeads: number; // Facebook hisoblagan lead
   spendUsd: number; // sent (USD*100)
   spendUzs: number; // so'm
-  cpl: number; // so'm / lead (CRM lead bo'yicha)
-  cpa: number; // so'm / sotuv
-  roas: number; // tushum / sarf (so'm bo'yicha)
+  cpl: number; // USD sent / FB lead (Facebook lead narxi, dollarda)
+  cpa: number; // USD sent / sotuv (CRM sotuv, dollarda)
+  roas: number; // tushum / sarf (so'm bo'yicha nisbat)
 }
 
 export interface CampaignStats {
@@ -165,8 +165,11 @@ export async function getCampaignStats(start: Date, end: Date): Promise<Campaign
 
     for (const r of map.values()) {
       r.conversion = r.leads > 0 ? (r.sales / r.leads) * 100 : 0;
-      r.cpl = r.leads > 0 ? Math.round(r.spendUzs / r.leads) : 0;
-      r.cpa = r.sales > 0 ? Math.round(r.spendUzs / r.sales) : 0;
+      // CPL — Facebook lead narxi ($): sarf(USD) / FB lead
+      r.cpl = r.fbLeads > 0 ? Math.round(r.spendUsd / r.fbLeads) : 0;
+      // CPA — bir sotuv narxi ($): sarf(USD) / CRM sotuv
+      r.cpa = r.sales > 0 ? Math.round(r.spendUsd / r.sales) : 0;
+      // ROAS — tushum(so'm) / sarf(so'm) nisbati
       r.roas = r.spendUzs > 0 ? r.revenue / r.spendUzs : 0;
     }
 
