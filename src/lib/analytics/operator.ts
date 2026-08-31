@@ -30,10 +30,17 @@ export async function getOperatorDashboardData(
   const pipeline = await getDefaultPipeline();
   const stageById = new Map(pipeline.stages.map((s) => [s.id, s]));
 
-  // "Kogorta" = shu davrda operatorga biriktirilgan leadlar
+  // "Kogorta" = shu davrda operatorga biriktirilgan leadlar (biriktirish/sifatli uchun)
   const cohort: Prisma.LeadWhereInput = {
     assignedToId: operatorId,
     assignedAt: { gte: start, lte: end },
+    deletedAt: null,
+  };
+  // Sotuv/tushum — SOTUV KUNI (paidAt) bo'yicha, biriktirilgan kunga emas.
+  // Lead 28-kuni tushib 31-kuni sotilsa, sotuv 31-kunga yoziladi (hisob-kitob to'g'ri).
+  const salesScope: Prisma.LeadWhereInput = {
+    assignedToId: operatorId,
+    paidAt: { gte: start, lte: end },
     deletedAt: null,
   };
 
@@ -42,10 +49,10 @@ export async function getOperatorDashboardData(
       prisma.lead.groupBy({ by: ["stageId"], where: cohort, _count: { _all: true } }),
       prisma.lead.count({ where: cohort }),
       prisma.lead.count({ where: { ...cohort, qualifiedAt: { not: null } } }),
-      prisma.lead.count({ where: { ...cohort, paidAt: { not: null } } }),
-      prisma.payment.aggregate({ where: { lead: cohort }, _sum: { amount: true } }),
+      prisma.lead.count({ where: salesScope }),
+      prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end }, lead: { assignedToId: operatorId } }, _sum: { amount: true } }),
       prisma.lead.findMany({ where: cohort, select: { assignedAt: true } }),
-      prisma.lead.findMany({ where: { ...cohort, paidAt: { not: null } }, select: { paidAt: true } }),
+      prisma.lead.findMany({ where: salesScope, select: { paidAt: true } }),
     ]);
 
   const byStage: Record<string, number> = {};
