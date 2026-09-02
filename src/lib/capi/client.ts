@@ -17,10 +17,17 @@ export interface CapiLeadData {
   id: string;
   name: string;
   phone: string;
-  externalLeadId: string | null;
+  secondPhone?: string | null;
+  externalLeadId: string | null; // Meta leadgen ID (user_data.lead_id — reklamaga bog'lash)
   fbc: string | null;
   fbp: string | null;
   value?: number | null; // Purchase uchun (so'm)
+  // Qo'shimcha (custom_data) — biznes parametrlari
+  profession?: string | null;
+  languageLevel?: string | null;
+  campaignName?: string | null;
+  adName?: string | null;
+  source?: string | null;
 }
 
 export interface CapiSendResult {
@@ -31,10 +38,13 @@ export interface CapiSendResult {
   transient: boolean; // qayta urinishga arziydimi
 }
 
-/** Telefonni E.164 raqamlarga tozalab, SHA-256 hash qiladi. */
-function hashPhone(phone: string): string {
-  const digits = phone.replace(/[^\d]/g, "");
-  return sha256(digits);
+/** Telefonni E.164 raqamlarga normallashtiradi (O'zbekiston kodi bilan). */
+function normalizePhoneDigits(phone: string): string {
+  let d = phone.replace(/[^\d]/g, "");
+  if (d.length === 9) d = "998" + d; // 953511551 -> 998953511551
+  else if (d.length === 12 && d.startsWith("998")) { /* to'g'ri */ }
+  else if (d.length === 13 && d.startsWith("998")) d = d.slice(0, 12); // ortiqcha raqam
+  return d;
 }
 
 /** Meta uchun event payload (user_data hashlangan — xavfsiz). */
@@ -44,12 +54,41 @@ export function buildPayload(
   eventId: string,
   actionSource = "system_generated",
 ) {
+  // Telefon(lar) — asosiy + ikkinchi raqam, normallashtirilib SHA-256 hashlanadi
+  const phoneHashes = Array.from(
+    new Set(
+      [lead.phone, lead.secondPhone]
+        .filter((p): p is string => !!p)
+        .map((p) => normalizePhoneDigits(p))
+        .filter((d) => d.length >= 9)
+        .map((d) => sha256(d)),
+    ),
+  );
+
   const userData: Record<string, unknown> = {
-    ph: [hashPhone(lead.phone)],
+    ph: phoneHashes,
     external_id: [sha256(lead.id)],
   };
+  // Ism (fn) — birinchi so'z, kichik harf, hashlangan
+  const fn = lead.name?.trim().split(/\s+/)[0]?.toLowerCase();
+  if (fn) userData.fn = [sha256(fn)];
+  // Meta leadgen ID — konversiyani aynan reklamaga bog'laydi (hashlanmaydi).
+  // 17 xonali son JS Number'da aniqligini yo'qotadi — string sifatida yuboriladi.
+  if (lead.externalLeadId) userData.lead_id = lead.externalLeadId;
   if (lead.fbc) userData.fbc = lead.fbc;
   if (lead.fbp) userData.fbp = lead.fbp;
+
+  // custom_data — biznes parametrlari (hashlanmaydi)
+  const customData: Record<string, unknown> = { lead_event_source: "Alif CRM" };
+  if (eventName === "Purchase" && lead.value != null) {
+    customData.value = lead.value;
+    customData.currency = "UZS";
+  }
+  if (lead.profession) customData.profession = lead.profession;
+  if (lead.languageLevel) customData.language_level = lead.languageLevel;
+  if (lead.campaignName) customData.campaign_name = lead.campaignName;
+  if (lead.adName) customData.ad_name = lead.adName;
+  if (lead.source) customData.lead_source = lead.source;
 
   const event: Record<string, unknown> = {
     event_name: eventName,
@@ -57,11 +96,8 @@ export function buildPayload(
     event_id: eventId,
     action_source: actionSource,
     user_data: userData,
+    custom_data: customData,
   };
-
-  if (eventName === "Purchase" && lead.value != null) {
-    event.custom_data = { value: lead.value, currency: "UZS" };
-  }
 
   return { data: [event] };
 }
