@@ -21,7 +21,7 @@ export interface CapiLeadData {
   externalLeadId: string | null; // Meta leadgen ID (user_data.lead_id — reklamaga bog'lash)
   fbc: string | null;
   fbp: string | null;
-  value?: number | null; // Purchase uchun (so'm)
+  value?: number | null; // Purchase uchun — USD (so'mdan aylantirilgan)
   // Qo'shimcha (custom_data) — biznes parametrlari
   profession?: string | null;
   languageLevel?: string | null;
@@ -81,8 +81,8 @@ export function buildPayload(
   // custom_data — biznes parametrlari (hashlanmaydi)
   const customData: Record<string, unknown> = { lead_event_source: "Alif CRM" };
   if (eventName === "Purchase" && lead.value != null) {
-    customData.value = lead.value;
-    customData.currency = "UZS";
+    customData.value = lead.value; // USD (service.ts'da so'mdan aylantirilgan)
+    customData.currency = "USD";
   }
   if (lead.profession) customData.profession = lead.profession;
   if (lead.languageLevel) customData.language_level = lead.languageLevel;

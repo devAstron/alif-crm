@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/crypto";
+import { getUsdToUzsRate } from "@/lib/fx/rate";
 import { sendCapiEvent, type CapiSettingsResolved, type CapiLeadData } from "./client";
 import type { CapiEventName, Prisma } from "@prisma/client";
+
+/** So'mdagi summani joriy kurs bo'yicha USD'ga aylantiradi (2 kasr). */
+async function somToUsd(valueSom: number): Promise<number> {
+  const rate = await getUsdToUzsRate();
+  return rate > 0 ? Math.round((valueSom / rate) * 100) / 100 : 0;
+}
 
 /** Meta event nomi (enum -> Meta string). */
 export function metaEventName(kind: CapiEventName): string {
@@ -54,7 +61,7 @@ export async function fireCapiForStage(leadId: string, kind: CapiEventName): Pro
     let value: number | null = null;
     if (kind === "PURCHASE") {
       const agg = await prisma.payment.aggregate({ where: { leadId }, _sum: { amount: true } });
-      value = Number(agg._sum.amount ?? 0n);
+      value = await somToUsd(Number(agg._sum.amount ?? 0n)); // USD (Meta uchun)
     }
 
     const leadData: CapiLeadData = {
@@ -149,7 +156,7 @@ export async function retryCapiEvent(capiEventId: string): Promise<{ ok: boolean
   let value: number | null = null;
   if (event.eventName === "PURCHASE") {
     const agg = await prisma.payment.aggregate({ where: { leadId: event.leadId }, _sum: { amount: true } });
-    value = Number(agg._sum.amount ?? 0n);
+    value = await somToUsd(Number(agg._sum.amount ?? 0n)); // USD (Meta uchun)
   }
 
   await deliver(
