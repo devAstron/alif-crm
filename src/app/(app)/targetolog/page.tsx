@@ -24,7 +24,7 @@ export default async function TargetologPage({
 }) {
   await requireRole("ADMIN", "TARGETOLOG");
   const sp = await searchParams;
-  const { start, end } = presetRange((sp.range as DateRangePreset) ?? "month", sp.from, sp.to);
+  const { start, end } = presetRange((sp.range as DateRangePreset) ?? "today", sp.from, sp.to);
 
   const [data, campaignStats, fbSettings, capiSettings, capiEvents] = await Promise.all([
     getDashboardData(start, end),

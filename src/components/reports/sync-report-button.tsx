@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw } from "lucide-react";
 import { runAdSyncAction } from "@/lib/actions/fb-actions";
+import { formatSom } from "@/lib/serialize";
 
 /**
  * "Kechani hisoblash" — reklama sarfini Facebook'dan bir tugma bilan tortib,
@@ -21,8 +22,9 @@ export function SyncReportButton() {
     setError(null);
     startTransition(async () => {
       const res = await runAdSyncAction();
-      if (res.ok) {
-        setMsg(res.data?.message ?? "Hisoblandi");
+      if (res.ok && res.data) {
+        const dateFmt = res.data.date.split("-").reverse().join(".");
+        setMsg(`${dateFmt}: reklama sarfi ${formatSom(res.data.adSpendUzs)} deb yozildi`);
         router.refresh();
       } else {
         setError(res.error ?? "Xatolik");

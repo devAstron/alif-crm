@@ -15,7 +15,7 @@ export default async function ReportsPage({
 }) {
   await requireRole("ADMIN", "TARGETOLOG");
   const sp = await searchParams;
-  const { start, end } = presetRange((sp.range as DateRangePreset) ?? "month", sp.from, sp.to);
+  const { start, end } = presetRange((sp.range as DateRangePreset) ?? "today", sp.from, sp.to);
   const data = await getReportData(start, end);
 
   return (

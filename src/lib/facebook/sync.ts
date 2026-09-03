@@ -12,6 +12,7 @@ export interface AdSyncResult {
   rows?: number;
   fbLeadsTotal?: number;
   crmLeadsTotal?: number;
+  adSpendUzs?: number; // Hisobotlar jadvaliga yozilgan reklama sarfi (so'm)
   error?: string;
 }
 
@@ -89,7 +90,7 @@ export async function syncAdInsights(day: Date): Promise<AdSyncResult> {
       data: { lastSyncAt: new Date(), lastSyncError: null },
     });
 
-    return { ok: true, date: dateKey, usdToUzs, rows: rowCount, fbLeadsTotal, crmLeadsTotal };
+    return { ok: true, date: dateKey, usdToUzs, rows: rowCount, fbLeadsTotal, crmLeadsTotal, adSpendUzs };
   } catch (e) {
     const error = e instanceof Error ? e.message : "Sinxronlashda xatolik";
     await prisma.fbSettings.update({ where: { id: "singleton" }, data: { lastSyncError: error } }).catch(() => {});
