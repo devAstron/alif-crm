@@ -1,6 +1,8 @@
 import { leadScopeWhere } from "./scope";
-import { dateKeyToUtcStart, dateKeyToUtcEnd } from "@/lib/datetime";
+import { dateKeyToUtcStart, dateKeyToUtcEnd, tashkentDayRange } from "@/lib/datetime";
 import type { Prisma, Role } from "@prisma/client";
+
+export type LeadDatePreset = "all" | "today" | "yesterday";
 
 export interface LeadFilterParams {
   q?: string; // ism yoki telefon
@@ -11,6 +13,7 @@ export interface LeadFilterParams {
   from?: string; // YYYY-MM-DD
   to?: string;
   payment?: string; // "any" | "none"
+  datePreset?: LeadDatePreset; // "today"/"yesterday" — tushgan YOKI o'sha kuni ishlangan
 }
 
 /** Rol doirasi + foydalanuvchi filtrlaridan Prisma where quradi. */
@@ -35,6 +38,14 @@ export function buildLeadWhere(
   if (params.campaignId) and.push({ campaignId: params.campaignId });
   if (params.from) and.push({ createdAt: { gte: dateKeyToUtcStart(params.from) } });
   if (params.to) and.push({ createdAt: { lte: dateKeyToUtcEnd(params.to) } });
+  // Kun preseti: o'sha kuni TUSHGAN (createdAt) yoki o'sha kuni QABUL QILINGAN
+  // (assignedAt) yoki BOSHQA BOSQICHGA O'TKAZILGAN (stageChangedAt) leadlar.
+  if (params.datePreset === "today" || params.datePreset === "yesterday") {
+    const base = params.datePreset === "yesterday" ? new Date(Date.now() - 86_400_000) : new Date();
+    const { start, end } = tashkentDayRange(base);
+    const range = { gte: start, lte: end };
+    and.push({ OR: [{ createdAt: range }, { assignedAt: range }, { stageChangedAt: range }] });
+  }
   if (params.payment === "any") and.push({ payments: { some: {} } });
   if (params.payment === "none") and.push({ payments: { none: {} } });
 

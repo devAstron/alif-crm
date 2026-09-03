@@ -25,6 +25,8 @@ export function LeadFilters({ operators, sources, canExport, isAdmin }: Props) {
   const [to, setTo] = useState(params.get("to") ?? "");
   const [payment, setPayment] = useState(params.get("payment") ?? "");
 
+  const activePreset = params.get("datePreset") ?? "all";
+
   function apply(extra?: Record<string, string>) {
     const sp = new URLSearchParams();
     const q2 = extra?.q ?? q;
@@ -34,6 +36,15 @@ export function LeadFilters({ operators, sources, canExport, isAdmin }: Props) {
     if (from) sp.set("from", from);
     if (to) sp.set("to", to);
     if (payment) sp.set("payment", payment);
+    if (activePreset !== "all") sp.set("datePreset", activePreset);
+    router.push(`${pathname}?${sp.toString()}`);
+  }
+
+  // Kun preseti — boshqa filtrlarni saqlab, faqat datePreset'ni o'zgartiradi
+  function setPreset(p: "all" | "today" | "yesterday") {
+    const sp = new URLSearchParams(params.toString());
+    if (p === "all") sp.delete("datePreset");
+    else sp.set("datePreset", p);
     router.push(`${pathname}?${sp.toString()}`);
   }
 
@@ -43,10 +54,32 @@ export function LeadFilters({ operators, sources, canExport, isAdmin }: Props) {
   }
 
   const exportHref = `/api/export/leads?${params.toString()}`;
-  const hasFilters = !!(params.get("q") || params.get("operatorId") || params.get("source") || params.get("from") || params.get("to") || params.get("payment"));
+  const hasFilters = !!(params.get("q") || params.get("operatorId") || params.get("source") || params.get("from") || params.get("to") || params.get("payment") || params.get("datePreset"));
+
+  const PRESETS: { key: "all" | "today" | "yesterday"; label: string }[] = [
+    { key: "all", label: "Butun davr" },
+    { key: "today", label: "Bugun" },
+    { key: "yesterday", label: "Kecha" },
+  ];
 
   return (
     <div className="mb-4 flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {PRESETS.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => setPreset(p.key)}
+            className={`rounded-lg border px-3.5 py-1.5 text-sm font-medium transition ${
+              activePreset === p.key
+                ? "border-brand-500 bg-brand-50 text-brand-700"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-48">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

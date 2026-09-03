@@ -23,6 +23,7 @@ export default async function LeadsPage({
     from: sp.from,
     to: sp.to,
     payment: sp.payment,
+    datePreset: sp.datePreset as LeadFilterParams["datePreset"],
   };
   const isAdmin = user.role === "ADMIN";
   const isTargetolog = user.role === "TARGETOLOG";
