@@ -101,6 +101,7 @@ export async function runAdSyncAction(dateKey?: string): Promise<ActionResult<{ 
     });
 
     revalidatePath("/targetolog");
+    revalidatePath("/reports");
     return {
       ok: true,
       data: {

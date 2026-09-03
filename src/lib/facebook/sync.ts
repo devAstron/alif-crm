@@ -34,11 +34,15 @@ export async function syncAdInsights(day: Date): Promise<AdSyncResult> {
 
     let rowCount = 0;
     let fbLeadsTotal = 0;
+    let campaignSpendUsd = 0; // faqat "campaign" darajasi — adset/ad bilan qo'sh hisoblanmasligi uchun
 
     for (const level of LEVELS) {
       const insights = await fetchFbInsights(cfg, level, dateKey, dateKey);
       for (const row of insights) {
-        if (level === "campaign") fbLeadsTotal += row.fbLeads;
+        if (level === "campaign") {
+          fbLeadsTotal += row.fbLeads;
+          campaignSpendUsd += row.spendUsd;
+        }
         await prisma.adInsight.upsert({
           where: { date_level_entityId: { date: dbDate, level, entityId: row.entityId } },
           create: {
@@ -69,6 +73,15 @@ export async function syncAdInsights(day: Date): Promise<AdSyncResult> {
     const { start, end } = dayBounds(dateKey);
     const crmLeadsTotal = await prisma.lead.count({
       where: { createdAt: { gte: start, lte: end }, deletedAt: null },
+    });
+
+    // Hisobotlar (MarketingReport) — reklama sarfini avtomatik to'ldiramiz,
+    // qo'lda kiritish shart bo'lmasin. Har sinxronda FB'dan qayta yoziladi.
+    const adSpendUzs = Math.round((campaignSpendUsd / 100) * usdToUzs);
+    await prisma.marketingReport.upsert({
+      where: { date: dbDate },
+      create: { date: dbDate, adSpend: BigInt(adSpendUzs) },
+      update: { adSpend: BigInt(adSpendUzs) },
     });
 
     await prisma.fbSettings.update({
