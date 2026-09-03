@@ -30,9 +30,9 @@ export default async function ReportsPage({
       </div>
       <ReportsTable data={data} />
       <p className="mt-4 text-xs text-slate-400">
-        CPL = sarf / lead · Konversiya = sotuv / lead · CPA = sarf / sotuv · ROAS = tushum / sarf.
-        Reklama sarfi Facebook Marketing API&apos;dan avtomatik olinadi (kunlik kurs bo&apos;yicha so&apos;mga
-        o&apos;giriladi); zarur bo&apos;lsa qo&apos;lda ham tuzatish mumkin.
+        Reklama sarfi, CPL, CPA — $ (Facebook&apos;dan avtomatik, kampaniya darajasida). Tushum — so&apos;m.
+        CPL = sarf / lead · Konversiya = sotuv / lead · CPA = sarf / sotuv · ROAS = tushum(so&apos;m) / sarf(so&apos;m
+        ekvivalenti).
       </p>
     </>
   );

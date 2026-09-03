@@ -84,7 +84,7 @@ export async function testFbConnectionAction(): Promise<ActionResult<{ message: 
 /** Qo'lda sinxronlash (default: kecha). Admin/targetolog. */
 export async function runAdSyncAction(
   dateKey?: string,
-): Promise<ActionResult<{ message: string; date: string; adSpendUzs: number }>> {
+): Promise<ActionResult<{ message: string; date: string; adSpendUsd: number }>> {
   const user = await requireRole("ADMIN", "TARGETOLOG");
   try {
     const day = dateKey && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)
@@ -109,7 +109,7 @@ export async function runAdSyncAction(
       data: {
         message: `${result.date}: ${result.rows} qator, FB ${result.fbLeadsTotal} / CRM ${result.crmLeadsTotal} lead, kurs ${result.usdToUzs?.toLocaleString("ru-RU")} so'm.`,
         date: result.date,
-        adSpendUzs: result.adSpendUzs ?? 0,
+        adSpendUsd: result.adSpendUsd ?? 0,
       },
     };
   } catch (error) {
