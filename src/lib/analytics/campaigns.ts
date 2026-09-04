@@ -48,22 +48,25 @@ type SpendMaps = Record<AdLevel, Map<string, SpendAgg>>;
  * Ierarxiya (drill-down) uchun har adset/ad o'z parent kampaniya/adsetini biladi.
  */
 export async function getCampaignStats(start: Date, end: Date): Promise<CampaignStats> {
-  const rangeWhere = { createdAt: { gte: start, lte: end }, deletedAt: null };
-
+  const range = { gte: start, lte: end };
+  // Lead TUSHGAN kunini yoki SOTUV bo'lgan kunini hisobga olamiz — aks holda
+  // ilgari tushib, shu davrda to'langan lead sotuvi hech qaysi kampaniyaga
+  // yozilmay qoladi (leads/qualified pastda createdAt bo'yicha, sales/revenue
+  // paidAt bo'yicha ajratiladi).
   const [leads, payments] = await Promise.all([
     prisma.lead.findMany({
-      where: rangeWhere,
+      where: { deletedAt: null, OR: [{ createdAt: range }, { paidAt: range }] },
       select: {
         id: true,
         campaignId: true, campaignName: true,
         adsetId: true, adsetName: true,
         adId: true, adName: true,
-        qualifiedAt: true, paidAt: true,
+        createdAt: true, qualifiedAt: true, paidAt: true,
       },
     }),
     prisma.payment.groupBy({
       by: ["leadId"],
-      where: { paidAt: { gte: start, lte: end } },
+      where: { paidAt: range },
       _sum: { amount: true },
     }),
   ]);
@@ -139,12 +142,23 @@ export async function getCampaignStats(start: Date, end: Date): Promise<Campaign
     for (const l of leads) {
       const id = idOf(l);
       if (!id) continue;
+      const rev = revByLead.get(l.id) ?? 0;
+      const createdInRange = l.createdAt >= start && l.createdAt <= end;
+      const paidInRange = !!l.paidAt && l.paidAt >= start && l.paidAt <= end;
+      if (!createdInRange && !paidInRange) continue; // faqat kengroq so'rov uchun (parent aniqlash) — bu qatorga tegishli emas
+
       let row = map.get(id);
       if (!row) { row = newRow(id, nameOf(l) ?? id); map.set(id, row); }
-      row.leads += 1;
-      if (l.qualifiedAt) row.qualified += 1;
-      if (l.paidAt) row.sales += 1;
-      row.revenue += revByLead.get(l.id) ?? 0;
+      // Lead/sifatli — TUSHGAN kuni bo'yicha (kogorta)
+      if (createdInRange) {
+        row.leads += 1;
+        if (l.qualifiedAt) row.qualified += 1;
+      }
+      // Sotuv/tushum — TO'LANGAN kuni bo'yicha (lead ilgari tushgan bo'lsa ham)
+      if (paidInRange) {
+        row.sales += 1;
+        row.revenue += rev;
+      }
       const pc = parentCampaign(l);
       const pa = parentAdset(l);
       if (pc && !row.campaignId) row.campaignId = pc;
