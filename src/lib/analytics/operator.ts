@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getDefaultPipeline } from "@/lib/pipeline";
 import { STAGE } from "@/lib/constants";
+import { stageActivityWhere } from "@/lib/leads/scope";
 import { tashkentDateKey } from "@/lib/datetime";
 import { addDays } from "date-fns";
 import type { Prisma } from "@prisma/client";
@@ -44,15 +45,15 @@ export async function getOperatorDashboardData(
     paidAt: { gte: start, lte: end },
     deletedAt: null,
   };
-  // Bosqich faoliyati (funnel/byStage) — HARAKAT SODIR BO'LGAN kun bo'yicha
-  // (stageChangedAt), lead qачon biriktirilganidan qat'i nazar. Masalan lead
+  // Bosqich faoliyati (funnel/byStage) — Mijozlar/Kanban filtri bilan bir
+  // xil mezon (stageActivityWhere, src/lib/leads/scope.ts): TUSHGAN yoki
+  // BIRIKTIRILGAN yoki BOSQICHI O'ZGARGAN shu davrda bo'lsa. Masalan lead
   // 5 kun oldin biriktirilib, bugun "To'lov qildi"ga o'tsa — bugungi
-  // voronkada ko'rinadi (createdAt/assignedAt-kogorta bo'yicha bo'lsa,
-  // bugun ko'rinmas edi — aynan shu xato bor edi).
+  // voronkada ko'rinadi.
   const stageActivityScope: Prisma.LeadWhereInput = {
     assignedToId: operatorId,
-    stageChangedAt: { gte: start, lte: end },
     deletedAt: null,
+    ...stageActivityWhere(start, end),
   };
   // Sifatli lid — qualifiedAt shu davrda bo'lsa, biriktirilgan kunidan qat'i nazar
   const qualifiedScope: Prisma.LeadWhereInput = {

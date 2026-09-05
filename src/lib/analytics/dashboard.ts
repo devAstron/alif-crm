@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getDefaultPipeline } from "@/lib/pipeline";
 import { STAGE } from "@/lib/constants";
+import { stageActivityWhere } from "@/lib/leads/scope";
 
 export interface DashboardData {
   leadsTotal: number;
@@ -34,12 +35,12 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
 
   const rangeWhere = { createdAt: { gte: start, lte: end }, deletedAt: null };
   // Bosqich statistikasi (funnel + Yangi lead/Qayta aloqa/Rad etilgan/To'lov
-  // kutilmoqda/Qisman to'lov kartalari) — HARAKAT SODIR BO'LGAN kun bo'yicha
-  // (stageChangedAt), lead qачon tushganidan qat'i nazar. stageChangedAt
-  // yaratilganda ham, har bosqich o'zgarishida ham yangilanadi — shuning
-  // uchun "lead 5 kun oldin tushib, bugun bosqichi o'zgardi" holatini bugunga
-  // to'g'ri yozadi (createdAt-kogorta bo'yicha bo'lsa, bugun ko'rinmas edi).
-  const stageActivityWhere = { stageChangedAt: { gte: start, lte: end }, deletedAt: null };
+  // kutilmoqda/Qisman to'lov kartalari) — Mijozlar/Kanban ("Bugun"/"Kecha"
+  // filtri) BILAN BIR XIL mezon: TUSHGAN yoki BIRIKTIRILGAN yoki BOSQICHI
+  // O'ZGARGAN shu davrda bo'lsa (stageActivityWhere, src/lib/leads/scope.ts).
+  // Ikkalasi turlicha bo'lsa — bir xil kun uchun turli sonlar chiqib,
+  // chalkashlik keltirib chiqaradi (aynan shu farq aniqlanib tuzatilgan edi).
+  const stageActivityLeadWhere = { deletedAt: null, ...stageActivityWhere(start, end) };
 
   const [
     byStageRaw,
@@ -54,7 +55,7 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     salesByOp,
     operators,
   ] = await Promise.all([
-    prisma.lead.groupBy({ by: ["stageId"], where: stageActivityWhere, _count: { _all: true } }),
+    prisma.lead.groupBy({ by: ["stageId"], where: stageActivityLeadWhere, _count: { _all: true } }),
     prisma.lead.count({ where: rangeWhere }),
     // Sifatli lid — qualifiedAt shu davrda bo'lsa (lead qачon tushganidan qat'i nazar)
     prisma.lead.count({ where: { qualifiedAt: { gte: start, lte: end }, deletedAt: null } }),
@@ -77,11 +78,11 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
       _sum: { amount: true },
     }),
     // Operator statistikasi (Rad etilgan/Kutilmoqda/Qisman ustunlari) — shu
-    // davrda bosqichi o'zgargan (stageChangedAt) leadlar bo'yicha, joriy
+    // davrda faoliyat bo'lgan (stageActivityWhere) leadlar bo'yicha, joriy
     // biriktirilgan operator kesimida.
     prisma.lead.groupBy({
       by: ["assignedToId", "stageId"],
-      where: { assignedToId: { not: null }, stageChangedAt: { gte: start, lte: end }, deletedAt: null },
+      where: { assignedToId: { not: null }, ...stageActivityLeadWhere },
       _count: { _all: true },
     }),
     // Operator sotuvlari — paidAt bo'yicha (sotuv qachon yopilgan), joriy bosqichdan

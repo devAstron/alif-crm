@@ -16,3 +16,16 @@ export function leadScopeWhere(user: { id: string; role: Role }): Prisma.LeadWhe
   }
   return base;
 }
+
+/**
+ * "Shu davrda leadга tegishli harakat bo'ldimi" — TUSHGAN (createdAt) YOKI
+ * BIRIKTIRILGAN (assignedAt) YOKI BOSQICHI O'ZGARGAN (stageChangedAt) kunlari
+ * oraliqda bo'lsa. Mijozlar/Kanban ("Bugun"/"Kecha" filtri) va statistika
+ * (Boshqaruv paneli, operator paneli) BIR XIL mezon ishlatishi uchun umumiy —
+ * ikkalasi turlicha bo'lsa, bir xil kun uchun turli sonlar chiqib, chalkashlik
+ * keltirib chiqaradi (aynan shu sabab aniqlangan va tuzatilgan edi).
+ */
+export function stageActivityWhere(start: Date, end: Date): Prisma.LeadWhereInput {
+  const range = { gte: start, lte: end };
+  return { OR: [{ createdAt: range }, { assignedAt: range }, { stageChangedAt: range }] };
+}

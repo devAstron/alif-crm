@@ -1,4 +1,4 @@
-import { leadScopeWhere } from "./scope";
+import { leadScopeWhere, stageActivityWhere } from "./scope";
 import { dateKeyToUtcStart, dateKeyToUtcEnd, tashkentDayRange } from "@/lib/datetime";
 import type { Prisma, Role } from "@prisma/client";
 
@@ -43,8 +43,7 @@ export function buildLeadWhere(
   if (params.datePreset === "today" || params.datePreset === "yesterday") {
     const base = params.datePreset === "yesterday" ? new Date(Date.now() - 86_400_000) : new Date();
     const { start, end } = tashkentDayRange(base);
-    const range = { gte: start, lte: end };
-    and.push({ OR: [{ createdAt: range }, { assignedAt: range }, { stageChangedAt: range }] });
+    and.push(stageActivityWhere(start, end));
   }
   if (params.payment === "any") and.push({ payments: { some: {} } });
   if (params.payment === "none") and.push({ payments: { none: {} } });
