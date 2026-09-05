@@ -33,6 +33,13 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
   const stageById = new Map(pipeline.stages.map((s) => [s.id, s]));
 
   const rangeWhere = { createdAt: { gte: start, lte: end }, deletedAt: null };
+  // Bosqich statistikasi (funnel + Yangi lead/Qayta aloqa/Rad etilgan/To'lov
+  // kutilmoqda/Qisman to'lov kartalari) — HARAKAT SODIR BO'LGAN kun bo'yicha
+  // (stageChangedAt), lead qачon tushganidan qat'i nazar. stageChangedAt
+  // yaratilganda ham, har bosqich o'zgarishida ham yangilanadi — shuning
+  // uchun "lead 5 kun oldin tushib, bugun bosqichi o'zgardi" holatini bugunga
+  // to'g'ri yozadi (createdAt-kogorta bo'yicha bo'lsa, bugun ko'rinmas edi).
+  const stageActivityWhere = { stageChangedAt: { gte: start, lte: end }, deletedAt: null };
 
   const [
     byStageRaw,
@@ -47,12 +54,13 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     salesByOp,
     operators,
   ] = await Promise.all([
-    prisma.lead.groupBy({ by: ["stageId"], where: rangeWhere, _count: { _all: true } }),
+    prisma.lead.groupBy({ by: ["stageId"], where: stageActivityWhere, _count: { _all: true } }),
     prisma.lead.count({ where: rangeWhere }),
-    prisma.lead.count({ where: { ...rangeWhere, qualifiedAt: { not: null } } }),
+    // Sifatli lid — qualifiedAt shu davrda bo'lsa (lead qачon tushganidan qat'i nazar)
+    prisma.lead.count({ where: { qualifiedAt: { gte: start, lte: end }, deletedAt: null } }),
     prisma.lead.groupBy({
       by: ["assignedToId"],
-      where: { assignedToId: { not: null }, assignedAt: { gte: start, lte: end }, qualifiedAt: { not: null }, deletedAt: null },
+      where: { assignedToId: { not: null }, qualifiedAt: { gte: start, lte: end }, deletedAt: null },
       _count: { _all: true },
     }),
     prisma.lead.count({ where: { paidAt: { gte: start, lte: end }, deletedAt: null } }),
@@ -65,11 +73,12 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
       where: { paidAt: { gte: start, lte: end }, lead: { stage: { slug: STAGE.PARTIAL_PAYMENT } } },
       _sum: { amount: true },
     }),
-    // Operator statistikasi — SHU DAVRDA BIRIKTIRILGAN leadlar bo'yicha (assignedAt),
-    // ya'ni operatorning faoliyati (bugungi biriktirishlar darhol ko'rinadi)
+    // Operator statistikasi (Rad etilgan/Kutilmoqda/Qisman ustunlari) — shu
+    // davrda bosqichi o'zgargan (stageChangedAt) leadlar bo'yicha, joriy
+    // biriktirilgan operator kesimida.
     prisma.lead.groupBy({
       by: ["assignedToId", "stageId"],
-      where: { assignedToId: { not: null }, assignedAt: { gte: start, lte: end }, deletedAt: null },
+      where: { assignedToId: { not: null }, stageChangedAt: { gte: start, lte: end }, deletedAt: null },
       _count: { _all: true },
     }),
     // Operator sotuvlari — paidAt bo'yicha (sotuv qachon yopilgan), joriy bosqichdan
@@ -92,8 +101,11 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
 
   const conversion = leadsTotal > 0 ? (salesCount / leadsTotal) * 100 : 0;
 
-  // Voronka: har bosqichda HOZIR nechta lead borligini ko'rsatadi (joriy taqsimot,
-  // Kanban ustunlari bilan bir xil). Rad etilganlar alohida KPI'da ko'rsatiladi.
+  // Voronka: shu davrda HAR BOSQICHGA NECHTA LEAD O'TGANINI ko'rsatadi
+  // (stageChangedAt bo'yicha) — Kanban'ning joriy holati emas. Masalan lead
+  // 5 kun oldin tushib, bugun "To'lov qildi"ga o'tsa — bugungi voronkada
+  // ko'rinadi (keyin "Sinov darsi"ga o'tib ketsa ham). Rad etilganlar
+  // alohida KPI'da ko'rsatiladi.
   const funnel = pipeline.stages
     .filter((s) => s.slug !== STAGE.REJECTED)
     .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -120,7 +132,7 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     if (!stat) continue;
     const st = stageById.get(row.stageId);
     const n = row._count._all;
-    stat.assigned += n;
+    stat.assigned += n; // shu davrda bosqichi o'zgargan (faoliyat ko'rsatilgan) leadlar soni
     if (!st) continue;
     if (st.slug === STAGE.REJECTED) stat.rejected += n;
     else if (st.slug === STAGE.PAYMENT_PENDING) stat.paymentPending += n;

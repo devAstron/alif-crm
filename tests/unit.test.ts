@@ -94,16 +94,17 @@ describe("telefon normalizatsiyasi (+998)", () => {
 
 describe("CAPI payload xavfsizligi", () => {
   it("telefon hashlangan, raw yo'q; token payloadда yo'q", () => {
+    // value bu yerda USD (service.ts sarni so'mdan $ ga o'girib beradi, client.ts faqat yuboradi)
     const payload = buildPayload("Purchase", {
       id: "lead1", name: "Ali", phone: "+998901112233",
-      externalLeadId: null, fbc: "fb.1.x", fbp: "fb.1.y", value: 500000,
+      externalLeadId: null, fbc: "fb.1.x", fbp: "fb.1.y", value: 42.5,
     }, "Purchase:lead1");
     const str = JSON.stringify(payload);
     expect(str).not.toContain("998901112233"); // raw telefon yo'q
     expect(str).toContain("ph"); // hash bor
     const event = payload.data[0] as Record<string, unknown>;
     expect(event.event_id).toBe("Purchase:lead1");
-    expect((event.custom_data as Record<string, unknown>).value).toBe(500000);
-    expect((event.custom_data as Record<string, unknown>).currency).toBe("UZS");
+    expect((event.custom_data as Record<string, unknown>).value).toBe(42.5);
+    expect((event.custom_data as Record<string, unknown>).currency).toBe("USD");
   });
 });

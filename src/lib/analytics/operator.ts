@@ -30,7 +30,8 @@ export async function getOperatorDashboardData(
   const pipeline = await getDefaultPipeline();
   const stageById = new Map(pipeline.stages.map((s) => [s.id, s]));
 
-  // "Kogorta" = shu davrda operatorga biriktirilgan leadlar (biriktirish/sifatli uchun)
+  // "Kogorta" = shu davrda operatorga biriktirilgan leadlar (faqat "Biriktirilgan
+  // leadlar" KPI kartasi uchun — yangi biriktirishlar oqimi).
   const cohort: Prisma.LeadWhereInput = {
     assignedToId: operatorId,
     assignedAt: { gte: start, lte: end },
@@ -43,12 +44,28 @@ export async function getOperatorDashboardData(
     paidAt: { gte: start, lte: end },
     deletedAt: null,
   };
+  // Bosqich faoliyati (funnel/byStage) — HARAKAT SODIR BO'LGAN kun bo'yicha
+  // (stageChangedAt), lead qачon biriktirilganidan qat'i nazar. Masalan lead
+  // 5 kun oldin biriktirilib, bugun "To'lov qildi"ga o'tsa — bugungi
+  // voronkada ko'rinadi (createdAt/assignedAt-kogorta bo'yicha bo'lsa,
+  // bugun ko'rinmas edi — aynan shu xato bor edi).
+  const stageActivityScope: Prisma.LeadWhereInput = {
+    assignedToId: operatorId,
+    stageChangedAt: { gte: start, lte: end },
+    deletedAt: null,
+  };
+  // Sifatli lid — qualifiedAt shu davrda bo'lsa, biriktirilgan kunidan qat'i nazar
+  const qualifiedScope: Prisma.LeadWhereInput = {
+    assignedToId: operatorId,
+    qualifiedAt: { gte: start, lte: end },
+    deletedAt: null,
+  };
 
   const [byStageRaw, assignedTotal, qualifiedCount, salesCount, revenueAgg, assignedLeads, paidLeads] =
     await Promise.all([
-      prisma.lead.groupBy({ by: ["stageId"], where: cohort, _count: { _all: true } }),
+      prisma.lead.groupBy({ by: ["stageId"], where: stageActivityScope, _count: { _all: true } }),
       prisma.lead.count({ where: cohort }),
-      prisma.lead.count({ where: { ...cohort, qualifiedAt: { not: null } } }),
+      prisma.lead.count({ where: qualifiedScope }),
       prisma.lead.count({ where: salesScope }),
       prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end }, lead: { assignedToId: operatorId } }, _sum: { amount: true } }),
       prisma.lead.findMany({ where: cohort, select: { assignedAt: true } }),
@@ -64,6 +81,8 @@ export async function getOperatorDashboardData(
 
   const conversion = assignedTotal > 0 ? (salesCount / assignedTotal) * 100 : 0;
 
+  // Funnel/stageDistribution — shu davrda bosqichi o'zgargan (stageChangedAt)
+  // leadlar, Kanban'ning joriy holati emas (yuqoridagi stageActivityScope).
   const funnel = pipeline.stages
     .filter((s) => s.slug !== STAGE.REJECTED)
     .sort((a, b) => a.sortOrder - b.sortOrder)

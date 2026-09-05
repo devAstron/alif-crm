@@ -49,13 +49,13 @@ type SpendMaps = Record<AdLevel, Map<string, SpendAgg>>;
  */
 export async function getCampaignStats(start: Date, end: Date): Promise<CampaignStats> {
   const range = { gte: start, lte: end };
-  // Lead TUSHGAN kunini yoki SOTUV bo'lgan kunini hisobga olamiz — aks holda
-  // ilgari tushib, shu davrda to'langan lead sotuvi hech qaysi kampaniyaga
-  // yozilmay qoladi (leads/qualified pastda createdAt bo'yicha, sales/revenue
-  // paidAt bo'yicha ajratiladi).
+  // Lead TUSHGAN, SIFATLI BO'LGAN yoki SOTUV bo'lgan kunini hisobga olamiz —
+  // aks holda ilgari tushib shu davrda to'langan/sifatli bo'lgan lead hech
+  // qaysi kampaniyaga yozilmay qoladi (leads pastda createdAt, qualified
+  // qualifiedAt, sales/revenue paidAt bo'yicha — har biri mustaqil).
   const [leads, payments] = await Promise.all([
     prisma.lead.findMany({
-      where: { deletedAt: null, OR: [{ createdAt: range }, { paidAt: range }] },
+      where: { deletedAt: null, OR: [{ createdAt: range }, { paidAt: range }, { qualifiedAt: range }] },
       select: {
         id: true,
         campaignId: true, campaignName: true,
@@ -138,22 +138,25 @@ export async function getCampaignStats(start: Date, end: Date): Promise<Campaign
   ): AdStatRow[] {
     const map = new Map<string, AdStatRow>();
 
-    // CRM leadlaridan: metrikalar + parent (ierarxiya)
+    // CRM leadlaridan: metrikalar + parent (ierarxiya).
+    // Kampaniyasi bo'lmagan leadlar (qo'lda kiritilgan, manbasiz) "__none__"
+    // (Noma'lum) qatoriga yig'iladi — aks holda ular "Jami"dan tushib qolib,
+    // yuqoridagi umumiy KPI (masalan Sotuvlar) bilan mos kelmay qolardi.
     for (const l of leads) {
-      const id = idOf(l);
-      if (!id) continue;
+      const rawId = idOf(l);
+      const key = rawId ?? "__none__";
       const rev = revByLead.get(l.id) ?? 0;
       const createdInRange = l.createdAt >= start && l.createdAt <= end;
       const paidInRange = !!l.paidAt && l.paidAt >= start && l.paidAt <= end;
-      if (!createdInRange && !paidInRange) continue; // faqat kengroq so'rov uchun (parent aniqlash) — bu qatorga tegishli emas
+      const qualifiedInRange = !!l.qualifiedAt && l.qualifiedAt >= start && l.qualifiedAt <= end;
+      if (!createdInRange && !paidInRange && !qualifiedInRange) continue; // kengroq so'rov uchun — bu qatorga tegishli emas
 
-      let row = map.get(id);
-      if (!row) { row = newRow(id, nameOf(l) ?? id); map.set(id, row); }
-      // Lead/sifatli — TUSHGAN kuni bo'yicha (kogorta)
-      if (createdInRange) {
-        row.leads += 1;
-        if (l.qualifiedAt) row.qualified += 1;
-      }
+      let row = map.get(key);
+      if (!row) { row = newRow(key, rawId ? (nameOf(l) ?? rawId) : "Noma'lum (kampaniyasiz)"); map.set(key, row); }
+      // Lead — TUSHGAN kuni bo'yicha (kogorta)
+      if (createdInRange) row.leads += 1;
+      // Sifatli — SIFATLI BO'LGAN kuni bo'yicha (lead qачon tushganidan qat'i nazar)
+      if (qualifiedInRange) row.qualified += 1;
       // Sotuv/tushum — TO'LANGAN kuni bo'yicha (lead ilgari tushgan bo'lsa ham)
       if (paidInRange) {
         row.sales += 1;
