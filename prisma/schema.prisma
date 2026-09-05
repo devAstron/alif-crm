@@ -45,6 +45,16 @@ enum PaymentType {
   ONLINE
 }
 
+// To'lov YARATILGAN paytda qanday to'lov ekanligi (doimiy — keyinchalik lead
+// bosqichi o'zgarsa ham o'zgarmaydi). Hisobotlarda "Qisman/To'liq to'lov"
+// tasnifi shu maydondan olinadi, lead'ning HOZIRGI bosqichidan emas —
+// aks holda kechagi qisman to'lov, lead bugun to'liq to'lovga o'tgach,
+// retrospektiv ravishda "to'liq to'lov" bo'lib qayta yozilib qolar edi.
+enum PaymentKind {
+  PARTIAL
+  FULL
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -363,6 +373,7 @@ model Payment {
   leadId      String
   amount      BigInt // so'm (butun son)
   type        PaymentType @default(ONLINE)
+  kind        PaymentKind @default(FULL) // yaratilgan paytdagi turi (Qisman/To'liq hisobotlari uchun)
   note        String?
   proofUrl    String? // Kelajakda chek/fayl biriktirish uchun
   paidAt      DateTime    @default(now())

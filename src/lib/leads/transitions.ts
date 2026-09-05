@@ -166,6 +166,9 @@ export async function changeLeadStage(
 
   // --- To'lov bosqichlari qoidalari (§8, §37) ---
   let paymentToCreate: bigint | null = null;
+  // To'lov TURI shu yerda, aniq bosqichga qarab, DOIMIY sifatida belgilanadi
+  // (keyin lead bosqichi o'zgarsa ham bu yozuv o'zgarmaydi — hisobotlar to'g'ri qoladi).
+  const paymentKind: "PARTIAL" | "FULL" = toStage.slug === STAGE.PAID ? "FULL" : "PARTIAL";
   if (toStage.slug === STAGE.PARTIAL_PAYMENT || toStage.slug === STAGE.PAID) {
     const agg = await prisma.payment.aggregate({ where: { leadId }, _sum: { amount: true } });
     const existingTotal = agg._sum.amount ?? 0n;
@@ -273,6 +276,7 @@ export async function changeLeadStage(
           data: {
             leadId,
             amount: paymentToCreate,
+            kind: paymentKind,
             note: extra.paymentNote || null,
             createdById: user.id,
           },

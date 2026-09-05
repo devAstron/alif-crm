@@ -8,7 +8,7 @@ import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
 import { getClientIp } from "@/lib/request";
 import { assertLeadAccess } from "@/lib/leads/access";
-import { AUDIT } from "@/lib/constants";
+import { AUDIT, STAGE } from "@/lib/constants";
 import { formatSom } from "@/lib/serialize";
 import { DomainError, toActionError, type ActionResult } from "@/lib/errors";
 
@@ -36,11 +36,15 @@ export async function addPaymentAction(input: {
     const lead = await assertLeadAccess(user, parsed.data.leadId);
     const ip = await getClientIp();
     const amount = BigInt(parsed.data.amount);
+    // To'lov turi — leadning HOZIRGI (shu payt) bosqichiga qarab, DOIMIY
+    // sifatida yozib qo'yiladi (keyin bosqich o'zgarsa ham bu o'zgarmaydi).
+    const kind = lead.stage.slug === STAGE.PAID ? "FULL" : "PARTIAL";
 
     const payment = await prisma.payment.create({
       data: {
         leadId: parsed.data.leadId,
         amount,
+        kind,
         note: parsed.data.note || null,
         paidAt: parsed.data.paidAt ? new Date(parsed.data.paidAt) : new Date(),
         createdById: user.id,

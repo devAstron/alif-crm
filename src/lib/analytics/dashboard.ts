@@ -65,12 +65,15 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     }),
     prisma.lead.count({ where: { paidAt: { gte: start, lte: end }, deletedAt: null } }),
     prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end } }, _sum: { amount: true } }),
+    // To'liq/qisman to'lov — Payment.kind bo'yicha (to'lov YARATILGAN paytdagi
+    // turi, lead HOZIRGI bosqichi emas). Aks holda kechagi qisman to'lov, lead
+    // bugun to'liq to'lovga o'tgach, retrospektiv "to'liq" bo'lib qayta yozilardi.
     prisma.payment.aggregate({
-      where: { paidAt: { gte: start, lte: end }, lead: { stage: { slug: STAGE.PAID } } },
+      where: { paidAt: { gte: start, lte: end }, kind: "FULL" },
       _sum: { amount: true },
     }),
     prisma.payment.aggregate({
-      where: { paidAt: { gte: start, lte: end }, lead: { stage: { slug: STAGE.PARTIAL_PAYMENT } } },
+      where: { paidAt: { gte: start, lte: end }, kind: "PARTIAL" },
       _sum: { amount: true },
     }),
     // Operator statistikasi (Rad etilgan/Kutilmoqda/Qisman ustunlari) — shu
