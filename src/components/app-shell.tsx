@@ -14,6 +14,7 @@ import {
   X,
   LogOut,
   Bell,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem } from "@/lib/navigation";
@@ -28,6 +29,7 @@ const ICONS: Record<string, LucideIcon> = {
   BarChart3,
   Target,
   Settings,
+  Users,
 };
 
 function Brand() {

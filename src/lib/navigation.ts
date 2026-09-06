@@ -13,6 +13,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/leads", label: "Mijozlar", icon: "KanbanSquare", roles: ["ADMIN", "OPERATOR", "TARGETOLOG"] },
   { href: "/tasks", label: "Vazifalar", icon: "ListChecks", roles: ["ADMIN", "OPERATOR"] },
   { href: "/reports", label: "Hisobotlar", icon: "BarChart3", roles: ["ADMIN", "TARGETOLOG"] },
+  { href: "/operators", label: "Operatorlar", icon: "Users", roles: ["ADMIN"] },
   { href: "/targetolog", label: "Targetolog", icon: "Target", roles: ["ADMIN", "TARGETOLOG"] },
   { href: "/settings", label: "Sozlamalar", icon: "Settings", roles: ["ADMIN"] },
 ];

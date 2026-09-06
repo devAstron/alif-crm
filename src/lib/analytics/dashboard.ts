@@ -25,6 +25,7 @@ export interface OperatorStat {
   paymentPending: number;
   partial: number;
   sales: number;
+  revenue: number; // shu davrda operatorning leadlaridan kelgan tushum (so'm)
   conversion: number;
 }
 
@@ -53,6 +54,7 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     partialAgg,
     opRaw,
     salesByOp,
+    revenueByOpRaw,
     operators,
   ] = await Promise.all([
     prisma.lead.groupBy({ by: ["stageId"], where: stageActivityLeadWhere, _count: { _all: true } }),
@@ -92,6 +94,11 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
       where: { assignedToId: { not: null }, paidAt: { gte: start, lte: end }, deletedAt: null },
       _count: { _all: true },
     }),
+    // Operator tushumi — paidAt bo'yicha, leadning biriktirilgan operatoriga qarab
+    prisma.payment.findMany({
+      where: { paidAt: { gte: start, lte: end }, lead: { assignedToId: { not: null } } },
+      select: { amount: true, lead: { select: { assignedToId: true } } },
+    }),
     prisma.user.findMany({ where: { role: "OPERATOR" }, select: { id: true, name: true } }),
   ]);
 
@@ -127,6 +134,7 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
       paymentPending: 0,
       partial: 0,
       sales: 0,
+      revenue: 0,
       conversion: 0,
     });
   }
@@ -148,6 +156,13 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     const stat = opMap.get(row.assignedToId);
     if (stat) stat.sales += row._count._all;
   }
+  // Tushum — paidAt bo'yicha, lead biriktirilgan operator kesimida
+  for (const p of revenueByOpRaw) {
+    const opId = p.lead.assignedToId;
+    if (!opId) continue;
+    const stat = opMap.get(opId);
+    if (stat) stat.revenue += Number(p.amount);
+  }
   // Sifatli lid (qualifiedAt) — alohida hisoblanadi
   for (const row of qualifiedByOp) {
     if (!row.assignedToId) continue;
@@ -168,6 +183,6 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     partialPaymentSum: Number(partialAgg._sum.amount ?? 0n),
     conversion,
     funnel,
-    operators: Array.from(opMap.values()).sort((a, b) => b.sales - a.sales),
+    operators: Array.from(opMap.values()).sort((a, b) => b.revenue - a.revenue || b.sales - a.sales),
   };
 }
