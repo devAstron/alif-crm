@@ -133,7 +133,9 @@ export interface MoveStageInput {
 }
 
 /** Lead bosqichini o'zgartirish (Kanban drag&drop yoki lead detaldan). */
-export async function moveLeadStageAction(input: MoveStageInput): Promise<ActionResult> {
+export async function moveLeadStageAction(
+  input: MoveStageInput,
+): Promise<ActionResult<{ paymentId: string | null }>> {
   const user = await requireRole("ADMIN", "OPERATOR");
   const ip = await getClientIp();
 
@@ -155,7 +157,20 @@ export async function moveLeadStageAction(input: MoveStageInput): Promise<Action
     });
     revalidatePath("/leads");
     revalidatePath(`/leads/${input.leadId}`);
-    return { ok: true };
+
+    // Shu o'tishda yangi to'lov yaratilgan bo'lsa — uning ID'sini qaytaramiz
+    // (chekni shu yerdan darhol biriktirish uchun, StageChangeModal'da).
+    let paymentId: string | null = null;
+    if (input.paymentAmount != null && input.paymentAmount > 0) {
+      const latest = await prisma.payment.findFirst({
+        where: { leadId: input.leadId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      paymentId = latest?.id ?? null;
+    }
+
+    return { ok: true, data: { paymentId } };
   } catch (error) {
     return toActionError(error);
   }

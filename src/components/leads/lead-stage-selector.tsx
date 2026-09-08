@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { StageChangeModal, type StageChangeExtraInput } from "./stage-change-modal";
 import { moveLeadStageAction } from "@/lib/actions/lead-actions";
+import { attachReceiptAction } from "@/lib/actions/receipt-actions";
 import type { BoardStage } from "./kanban-board";
 
 interface Props {
@@ -12,9 +13,10 @@ interface Props {
   stages: BoardStage[];
   rejectionReasons: { id: string; name: string }[];
   processingReasons: { id: string; name: string }[];
+  receiptsEnabled?: boolean;
 }
 
-export function LeadStageSelector({ leadId, currentStageId, stages, rejectionReasons, processingReasons }: Props) {
+export function LeadStageSelector({ leadId, currentStageId, stages, rejectionReasons, processingReasons, receiptsEnabled = false }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState<BoardStage | null>(null);
   const [moving, setMoving] = useState(false);
@@ -23,7 +25,7 @@ export function LeadStageSelector({ leadId, currentStageId, stages, rejectionRea
 
   const current = stages.find((s) => s.id === currentStageId);
 
-  async function performMove(toStage: BoardStage, extra: StageChangeExtraInput = {}) {
+  async function performMove(toStage: BoardStage, extra: StageChangeExtraInput = {}, receiptFile: File | null = null) {
     setMoving(true);
     setModalError(null);
     const result = await moveLeadStageAction({
@@ -39,6 +41,11 @@ export function LeadStageSelector({ leadId, currentStageId, stages, rejectionRea
 
     if (result.ok) {
       setPending(null);
+      if (receiptFile && result.data?.paymentId) {
+        const fd = new FormData();
+        fd.set("file", receiptFile);
+        await attachReceiptAction(result.data.paymentId, fd);
+      }
       router.refresh();
       return;
     }
@@ -101,9 +108,10 @@ export function LeadStageSelector({ leadId, currentStageId, stages, rejectionRea
           requiredFields={pending.requiredFields}
           rejectionReasons={rejectionReasons}
           processingReasons={processingReasons}
+          receiptsEnabled={receiptsEnabled}
           loading={moving}
           error={modalError}
-          onSubmit={(extra) => performMove(pending, extra)}
+          onSubmit={(extra, file) => performMove(pending, extra, file)}
           onCancel={() => {
             setPending(null);
             setModalError(null);

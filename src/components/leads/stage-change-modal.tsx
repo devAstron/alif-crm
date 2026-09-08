@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { X, Loader2, UploadCloud, FileText, Image as ImageIcon } from "lucide-react";
 import { DateTimeQuick } from "@/components/ui/datetime-quick";
 
 export interface RejectionReasonOption {
@@ -18,15 +18,18 @@ export interface StageChangeExtraInput {
   paymentNote?: string | null;
 }
 
+const ACCEPTED_RECEIPT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
+
 interface Props {
   stageName: string;
   stageSlug: string;
   requiredFields: string[];
   rejectionReasons: RejectionReasonOption[];
   processingReasons?: RejectionReasonOption[];
+  receiptsEnabled?: boolean;
   loading?: boolean;
   error?: string | null;
-  onSubmit: (extra: StageChangeExtraInput) => void;
+  onSubmit: (extra: StageChangeExtraInput, receiptFile: File | null) => void;
   onCancel: () => void;
 }
 
@@ -36,6 +39,7 @@ export function StageChangeModal({
   requiredFields,
   rejectionReasons,
   processingReasons = [],
+  receiptsEnabled = false,
   loading,
   error,
   onSubmit,
@@ -53,15 +57,36 @@ export function StageChangeModal({
   const [rejectionNote, setRejectionNote] = useState("");
   const [processingStatus, setProcessingStatus] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function pickFile(file: File | null | undefined) {
+    setReceiptError(null);
+    if (!file) return;
+    if (!ACCEPTED_RECEIPT_TYPES.includes(file.type)) {
+      setReceiptError("Faqat rasm (JPG/PNG/WEBP) yoki PDF qabul qilinadi");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setReceiptError("Fayl hajmi 10MB dan oshmasin");
+      return;
+    }
+    setReceiptFile(file);
+  }
 
   const handleSubmit = () => {
-    onSubmit({
-      callbackAt: needsCallback || needsProcessing ? callbackAt || null : undefined,
-      rejectionReasonId: needsRejection ? rejectionReasonId || null : undefined,
-      rejectionNote: needsRejection ? rejectionNote || null : undefined,
-      processingStatus: needsProcessing ? processingStatus || null : undefined,
-      paymentAmount: needsPayment && paymentAmount ? Number(paymentAmount) : undefined,
-    });
+    onSubmit(
+      {
+        callbackAt: needsCallback || needsProcessing ? callbackAt || null : undefined,
+        rejectionReasonId: needsRejection ? rejectionReasonId || null : undefined,
+        rejectionNote: needsRejection ? rejectionNote || null : undefined,
+        processingStatus: needsProcessing ? processingStatus || null : undefined,
+        paymentAmount: needsPayment && paymentAmount ? Number(paymentAmount) : undefined,
+      },
+      receiptFile,
+    );
   };
 
   const canSubmit =
@@ -168,6 +193,57 @@ export function StageChangeModal({
                   </p>
                 )}
               </div>
+
+              {receiptsEnabled && (
+                <div>
+                  <label className="label">To&apos;lov cheki (ixtiyoriy)</label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={ACCEPTED_RECEIPT_TYPES.join(",")}
+                    className="hidden"
+                    onChange={(e) => pickFile(e.target.files?.[0])}
+                  />
+                  {receiptFile ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                      {receiptFile.type === "application/pdf" ? (
+                        <FileText className="h-5 w-5 shrink-0 text-slate-400" />
+                      ) : (
+                        <ImageIcon className="h-5 w-5 shrink-0 text-slate-400" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{receiptFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setReceiptFile(null)}
+                        className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-red-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOver(false);
+                        pickFile(e.dataTransfer.files?.[0]);
+                      }}
+                      className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border-2 border-dashed px-3 py-5 text-center transition ${
+                        dragOver ? "border-brand-400 bg-brand-50" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <UploadCloud className="h-5 w-5 text-slate-400" />
+                      <p className="text-xs text-slate-500">
+                        Chekni shu yerga tashlang yoki <span className="font-medium text-brand-600">bosib tanlang</span>
+                      </p>
+                      <p className="text-[11px] text-slate-400">JPG, PNG yoki PDF · 10MB gacha</p>
+                    </div>
+                  )}
+                  {receiptError && <p className="mt-1 text-xs text-red-600">{receiptError}</p>}
+                </div>
+              )}
             </>
           )}
 

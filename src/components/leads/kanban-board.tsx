@@ -14,6 +14,7 @@ import {
 import { LeadCardView } from "./lead-card";
 import { StageChangeModal, type StageChangeExtraInput } from "./stage-change-modal";
 import { moveLeadStageAction } from "@/lib/actions/lead-actions";
+import { attachReceiptAction } from "@/lib/actions/receipt-actions";
 import type { LeadCard } from "@/lib/leads/queries";
 
 export interface BoardStage {
@@ -32,6 +33,7 @@ interface Props {
   processingReasons: { id: string; name: string }[];
   readOnly?: boolean;
   showMeta?: boolean;
+  receiptsEnabled?: boolean;
 }
 
 function DraggableCard({
@@ -147,6 +149,7 @@ export function KanbanBoard({
   processingReasons,
   readOnly = false,
   showMeta = false,
+  receiptsEnabled = false,
 }: Props) {
   const router = useRouter();
   const [board, setBoard] = useState(initialLeadsByStage);
@@ -202,6 +205,7 @@ export function KanbanBoard({
     fromStageId: string,
     toStage: BoardStage,
     extra: StageChangeExtraInput = {},
+    receiptFile: File | null = null,
   ) {
     setMoving(true);
     setModalError(null);
@@ -230,6 +234,11 @@ export function KanbanBoard({
 
     if (result.ok) {
       setPending(null);
+      if (receiptFile && result.data?.paymentId) {
+        const fd = new FormData();
+        fd.set("file", receiptFile);
+        await attachReceiptAction(result.data.paymentId, fd);
+      }
       router.refresh();
       return;
     }
@@ -358,9 +367,10 @@ export function KanbanBoard({
           requiredFields={pending.toStage.requiredFields}
           rejectionReasons={rejectionReasons}
           processingReasons={processingReasons}
+          receiptsEnabled={receiptsEnabled}
           loading={moving}
           error={modalError}
-          onSubmit={(extra) => performMove(pending.card, pending.fromStageId, pending.toStage, extra)}
+          onSubmit={(extra, file) => performMove(pending.card, pending.fromStageId, pending.toStage, extra, file)}
           onCancel={() => {
             setPending(null);
             setModalError(null);

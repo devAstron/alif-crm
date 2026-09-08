@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { KanbanBoard } from "@/components/leads/kanban-board";
 import { LeadFilters } from "@/components/leads/lead-filters";
 import { CreateLeadModal } from "@/components/leads/create-lead-modal";
+import { isR2Configured } from "@/lib/storage/r2";
 
 export const metadata = { title: "Mijozlar — Alif CRM" };
 
@@ -65,6 +66,7 @@ export default async function LeadsPage({
         processingReasons={processingReasons}
         readOnly={isTargetolog}
         showMeta={canSeeAll}
+        receiptsEnabled={isR2Configured()}
       />
     </>
   );

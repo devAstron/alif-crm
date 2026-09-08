@@ -281,6 +281,7 @@ export default async function LeadDetailPage({
                   stages={stages}
                   rejectionReasons={rejectionReasons}
                   processingReasons={processingReasons}
+                  receiptsEnabled={isR2Configured()}
                 />
                 {user.role === "ADMIN" && (
                   <LeadOperatorSelector
