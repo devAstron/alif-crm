@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Loader2, CircleDollarSign, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, Loader2, CircleDollarSign, Pencil, Trash2, Check, X, Paperclip, Eye } from "lucide-react";
 import { addPaymentAction, updatePaymentAction, deletePaymentAction } from "@/lib/actions/payment-actions";
+import { attachReceiptAction, removeReceiptAction, getReceiptUrlAction } from "@/lib/actions/receipt-actions";
 import { formatSom } from "@/lib/serialize";
 import { formatTashkent } from "@/lib/datetime";
 
@@ -13,6 +14,7 @@ export interface PaymentRow {
   note: string | null;
   paidAt: Date;
   createdByName: string | null;
+  hasReceipt: boolean;
 }
 
 export function LeadPayments({
@@ -20,11 +22,13 @@ export function LeadPayments({
   payments,
   total,
   readOnly = false,
+  receiptsEnabled = false,
 }: {
   leadId: string;
   payments: PaymentRow[];
   total: number;
   readOnly?: boolean;
+  receiptsEnabled?: boolean;
 }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -35,6 +39,11 @@ export function LeadPayments({
   const [editId, setEditId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState("");
   const [editNote, setEditNote] = useState("");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTargetRef = useRef<string | null>(null);
+  const [receiptBusyId, setReceiptBusyId] = useState<string | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
 
   function submit() {
     setError(null);
@@ -73,8 +82,61 @@ export function LeadPayments({
     });
   }
 
+  function openAttachDialog(paymentId: string) {
+    setReceiptError(null);
+    uploadTargetRef.current = paymentId;
+    fileInputRef.current?.click();
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const paymentId = uploadTargetRef.current;
+    e.target.value = ""; // shu faylni qayta tanlash mumkin bo'lsin
+    if (!file || !paymentId) return;
+    setReceiptError(null);
+    setReceiptBusyId(paymentId);
+    const fd = new FormData();
+    fd.set("file", file);
+    startTransition(async () => {
+      const res = await attachReceiptAction(paymentId, fd);
+      setReceiptBusyId(null);
+      if (res.ok) router.refresh();
+      else setReceiptError(res.error ?? "Chekni yuklashda xatolik");
+    });
+  }
+
+  function viewReceipt(paymentId: string) {
+    setReceiptBusyId(paymentId);
+    startTransition(async () => {
+      const res = await getReceiptUrlAction(paymentId);
+      setReceiptBusyId(null);
+      if (res.ok && res.data) window.open(res.data.url, "_blank", "noopener,noreferrer");
+      else setReceiptError(res.error ?? "Chekni ochib bo'lmadi");
+    });
+  }
+
+  function removeReceipt(paymentId: string) {
+    if (!confirm("Chekni o'chirishni tasdiqlaysizmi?")) return;
+    setReceiptBusyId(paymentId);
+    startTransition(async () => {
+      await removeReceiptAction(paymentId);
+      setReceiptBusyId(null);
+      router.refresh();
+    });
+  }
+
   return (
     <div className="card p-5">
+      {receiptsEnabled && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      )}
+
       <div className="mb-1 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-900">To&apos;lovlar</h3>
         {!readOnly && (
@@ -105,6 +167,8 @@ export function LeadPayments({
         </div>
       )}
 
+      {receiptError && <p className="mb-2 text-sm text-red-600">{receiptError}</p>}
+
       {payments.length > 0 && (
         <ul className="space-y-2">
           {payments.map((p) => (
@@ -133,6 +197,40 @@ export function LeadPayments({
                       {p.note && ` · ${p.note}`}
                     </p>
                   </div>
+
+                  {receiptsEnabled && (
+                    <>
+                      {p.hasReceipt ? (
+                        <button
+                          onClick={() => viewReceipt(p.id)}
+                          disabled={receiptBusyId === p.id}
+                          className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          title="Chekni ko'rish"
+                        >
+                          {receiptBusyId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                          Chek
+                        </button>
+                      ) : (
+                        !readOnly && (
+                          <button
+                            onClick={() => openAttachDialog(p.id)}
+                            disabled={receiptBusyId === p.id}
+                            className="flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-2 py-1 text-xs text-slate-400 hover:border-brand-400 hover:text-brand-600"
+                            title="Chek biriktirish"
+                          >
+                            {receiptBusyId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+                            Chek
+                          </button>
+                        )
+                      )}
+                      {p.hasReceipt && !readOnly && (
+                        <button onClick={() => removeReceipt(p.id)} disabled={receiptBusyId === p.id} className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-100 hover:text-red-600" title="Chekni o'chirish">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </>
+                  )}
+
                   {!readOnly && (
                     <>
                       <button onClick={() => { setEditId(p.id); setEditAmount(String(p.amount)); setEditNote(p.note ?? ""); }} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" title="Tahrirlash">

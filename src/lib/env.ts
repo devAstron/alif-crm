@@ -15,6 +15,11 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().optional().default(""),
   TELEGRAM_WEBHOOK_SECRET: z.string().optional().default(""),
   CRON_SECRET: z.string().optional().default(""),
+  // Cloudflare R2 — to'lov cheki fayllari (ixtiyoriy; bo'lmasa yuklash tugmasi yashiriladi)
+  R2_ACCOUNT_ID: z.string().optional().default(""),
+  R2_ACCESS_KEY_ID: z.string().optional().default(""),
+  R2_SECRET_ACCESS_KEY: z.string().optional().default(""),
+  R2_BUCKET_NAME: z.string().optional().default(""),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

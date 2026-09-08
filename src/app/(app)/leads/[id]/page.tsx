@@ -12,6 +12,7 @@ import { LeadComments } from "@/components/leads/lead-comments";
 import { LeadTasks } from "@/components/leads/lead-tasks";
 import { LeadActivity } from "@/components/leads/lead-activity";
 import { LeadPayments } from "@/components/leads/lead-payments";
+import { isR2Configured } from "@/lib/storage/r2";
 import { LeadDeleteButton } from "@/components/leads/lead-delete-button";
 import { LeadEditModal } from "@/components/leads/lead-edit-modal";
 import { QualifyButton } from "@/components/leads/qualify-button";
@@ -107,6 +108,7 @@ export default async function LeadDetailPage({
     note: p.note,
     paidAt: p.paidAt,
     createdByName: p.createdBy?.name ?? null,
+    hasReceipt: !!p.proofUrl,
   }));
 
   const taskItems = tasks.map((t) => ({
@@ -330,7 +332,13 @@ export default async function LeadDetailPage({
       {/* Vazifalar, to'lov va faoliyat */}
       <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="flex flex-col gap-5">
-          <LeadPayments leadId={lead.id} payments={paymentItems} total={totalPaid} readOnly={readOnly} />
+          <LeadPayments
+            leadId={lead.id}
+            payments={paymentItems}
+            total={totalPaid}
+            readOnly={readOnly}
+            receiptsEnabled={isR2Configured()}
+          />
           <LeadTasks leadId={lead.id} tasks={taskItems} readOnly={readOnly} />
         </div>
         <LeadActivity leadId={lead.id} items={activity} readOnly={readOnly} />
