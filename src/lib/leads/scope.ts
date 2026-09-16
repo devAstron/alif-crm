@@ -19,13 +19,27 @@ export function leadScopeWhere(user: { id: string; role: Role }): Prisma.LeadWhe
 
 /**
  * "Shu davrda leadга tegishli harakat bo'ldimi" — TUSHGAN (createdAt) YOKI
- * BIRIKTIRILGAN (assignedAt) YOKI BOSQICHI O'ZGARGAN (stageChangedAt) kunlari
- * oraliqda bo'lsa. Mijozlar/Kanban ("Bugun"/"Kecha" filtri) va statistika
- * (Boshqaruv paneli, operator paneli) BIR XIL mezon ishlatishi uchun umumiy —
- * ikkalasi turlicha bo'lsa, bir xil kun uchun turli sonlar chiqib, chalkashlik
- * keltirib chiqaradi (aynan shu sabab aniqlangan va tuzatilgan edi).
+ * BIRIKTIRILGAN (assignedAt) YOKI BOSQICHI O'ZGARGAN (stageChangedAt) YOKI
+ * TO'LOV QILINGAN (payments.paidAt) kunlari oraliqda bo'lsa. Mijozlar/Kanban
+ * ("Bugun"/"Kecha" filtri) va statistika (Boshqaruv paneli, operator paneli)
+ * BIR XIL mezon ishlatishi uchun umumiy.
+ *
+ * To'rtinchi shart (payments.paidAt) MUHIM: lead sahifasidagi "To'lovlar →
+ * Qo'shish" tugmasi orqali (bosqich o'zgartirmasdan) to'lov qo'shilsa,
+ * createdAt/assignedAt/stageChangedAt HECH BIRI o'zgarmaydi — shu sababli
+ * bunday to'lov bugun qilingan bo'lsa ham, lead "Bugun" ro'yxatidan tushib
+ * qolardi, garchi Boshqaruv panelidagi tushum summasiga (Payment.paidAt
+ * bo'yicha, mustaqil) to'g'ri kirgan bo'lsa ham — Kanban va Dashboard
+ * o'rtasida mos kelmaslik keltirib chiqargan aynan shu edi.
  */
 export function stageActivityWhere(start: Date, end: Date): Prisma.LeadWhereInput {
   const range = { gte: start, lte: end };
-  return { OR: [{ createdAt: range }, { assignedAt: range }, { stageChangedAt: range }] };
+  return {
+    OR: [
+      { createdAt: range },
+      { assignedAt: range },
+      { stageChangedAt: range },
+      { payments: { some: { paidAt: range } } },
+    ],
+  };
 }
