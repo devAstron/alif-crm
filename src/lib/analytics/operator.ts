@@ -68,7 +68,7 @@ export async function getOperatorDashboardData(
       prisma.lead.count({ where: cohort }),
       prisma.lead.count({ where: qualifiedScope }),
       prisma.lead.count({ where: salesScope }),
-      prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end }, lead: { assignedToId: operatorId } }, _sum: { amount: true } }),
+      prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end }, lead: { assignedToId: operatorId, deletedAt: null } }, _sum: { amount: true } }),
       prisma.lead.findMany({ where: cohort, select: { assignedAt: true } }),
       prisma.lead.findMany({ where: salesScope, select: { paidAt: true } }),
     ]);

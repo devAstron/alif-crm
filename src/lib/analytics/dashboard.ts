@@ -67,16 +67,23 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
       _count: { _all: true },
     }),
     prisma.lead.count({ where: { paidAt: { gte: start, lte: end }, deletedAt: null } }),
-    prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end } }, _sum: { amount: true } }),
+    // Barcha to'lov summalari — O'CHIRILGAN leadlarni chiqarib tashlab
+    // (lead: {deletedAt: null}). Aks holda o'chirilgan (test/dublikat/xato)
+    // leadga yozilgan to'lov Dashboard summasiga kirib, Kanban/Mijozlar bilan
+    // mos kelmay qolardi (Kanban o'chirilgan leadlarni umuman ko'rsatmaydi).
+    prisma.payment.aggregate({
+      where: { paidAt: { gte: start, lte: end }, lead: { deletedAt: null } },
+      _sum: { amount: true },
+    }),
     // To'liq/qisman to'lov — Payment.kind bo'yicha (to'lov YARATILGAN paytdagi
     // turi, lead HOZIRGI bosqichi emas). Aks holda kechagi qisman to'lov, lead
     // bugun to'liq to'lovga o'tgach, retrospektiv "to'liq" bo'lib qayta yozilardi.
     prisma.payment.aggregate({
-      where: { paidAt: { gte: start, lte: end }, kind: "FULL" },
+      where: { paidAt: { gte: start, lte: end }, kind: "FULL", lead: { deletedAt: null } },
       _sum: { amount: true },
     }),
     prisma.payment.aggregate({
-      where: { paidAt: { gte: start, lte: end }, kind: "PARTIAL" },
+      where: { paidAt: { gte: start, lte: end }, kind: "PARTIAL", lead: { deletedAt: null } },
       _sum: { amount: true },
     }),
     // Operator statistikasi (Rad etilgan/Kutilmoqda/Qisman ustunlari) — shu
@@ -96,7 +103,7 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     }),
     // Operator tushumi — paidAt bo'yicha, leadning biriktirilgan operatoriga qarab
     prisma.payment.findMany({
-      where: { paidAt: { gte: start, lte: end }, lead: { assignedToId: { not: null } } },
+      where: { paidAt: { gte: start, lte: end }, lead: { assignedToId: { not: null }, deletedAt: null } },
       select: { amount: true, lead: { select: { assignedToId: true } } },
     }),
     prisma.user.findMany({ where: { role: "OPERATOR" }, select: { id: true, name: true } }),

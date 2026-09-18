@@ -66,7 +66,7 @@ export async function getCampaignStats(start: Date, end: Date): Promise<Campaign
     }),
     prisma.payment.groupBy({
       by: ["leadId"],
-      where: { paidAt: range },
+      where: { paidAt: range, lead: { deletedAt: null } },
       _sum: { amount: true },
     }),
   ]);

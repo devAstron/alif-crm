@@ -46,7 +46,7 @@ export async function getReportData(start: Date, end: Date): Promise<ReportData>
       select: { paidAt: true },
     }),
     prisma.payment.findMany({
-      where: { paidAt: { gte: start, lte: end } },
+      where: { paidAt: { gte: start, lte: end }, lead: { deletedAt: null } },
       select: { amount: true, paidAt: true },
     }),
     prisma.adInsight.findMany({
