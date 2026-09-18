@@ -321,10 +321,19 @@ export async function unmarkQualifiedAction(leadId: string): Promise<ActionResul
   }
 }
 
-/** Leadni soft-delete qiladi (§23). Operator o'z leadini, admin har qanday leadni. */
-export async function deleteLeadAction(leadId: string): Promise<ActionResult> {
+/**
+ * Leadni soft-delete qiladi (§23). Operator o'z leadini, admin har qanday
+ * leadni. Sabab MAJBURIY — bo'sh/faqat bo'shliqlardan iborat bo'lsa xato
+ * qaytaradi (UI'da tugma buni oldindan faolsizlantiradi, bu — ikkilamchi
+ * himoya).
+ */
+export async function deleteLeadAction(leadId: string, reason: string): Promise<ActionResult> {
   const user = await requireRole("ADMIN", "OPERATOR");
   const ip = await getClientIp();
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) {
+    return { ok: false, error: "O'chirish sababini yozish shart" };
+  }
   try {
     const lead = await prisma.lead.findFirst({
       where: { id: leadId, deletedAt: null },
@@ -336,17 +345,18 @@ export async function deleteLeadAction(leadId: string): Promise<ActionResult> {
     }
     await prisma.lead.update({
       where: { id: leadId },
-      data: { deletedAt: new Date(), deletedById: user.id },
+      data: { deletedAt: new Date(), deletedById: user.id, deleteReason: trimmedReason },
     });
     await writeAudit({
       userId: user.id,
       action: AUDIT.LEAD_DELETE,
       entity: "Lead",
       entityId: leadId,
-      newData: { name: lead.name },
+      newData: { name: lead.name, reason: trimmedReason },
       ip,
     });
     revalidatePath("/leads");
+    revalidatePath("/settings/deleted");
     return { ok: true };
   } catch (error) {
     return toActionError(error);
@@ -360,7 +370,7 @@ export async function restoreLeadAction(leadId: string): Promise<ActionResult> {
   try {
     await prisma.lead.update({
       where: { id: leadId },
-      data: { deletedAt: null, deletedById: null },
+      data: { deletedAt: null, deletedById: null, deleteReason: null },
     });
     await writeAudit({ userId: user.id, action: AUDIT.LEAD_RESTORE, entity: "Lead", entityId: leadId, ip });
     revalidatePath("/leads");

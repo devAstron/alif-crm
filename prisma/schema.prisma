@@ -266,8 +266,9 @@ model Lead {
   purchaseSentAt      DateTime? // Purchase CAPI yuborilgan (dedup)
 
   // Soft delete
-  deletedAt   DateTime?
-  deletedById String?
+  deletedAt    DateTime?
+  deletedById  String?
+  deleteReason String? // o'chirish sababi (majburiy — UI'da bo'sh bo'lsa tasdiqlash tugmasi faolsiz)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -12,6 +12,7 @@ export interface DeletedLead {
   phone: string;
   deletedAt: Date | null;
   deletedByName: string | null;
+  deleteReason: string | null;
 }
 
 export function DeletedLeads({ leads }: { leads: DeletedLead[] }) {
@@ -40,6 +41,11 @@ export function DeletedLeads({ leads }: { leads: DeletedLead[] }) {
               {l.deletedAt && ` · o'chirilgan: ${formatTashkent(l.deletedAt)}`}
               {l.deletedByName && ` · ${l.deletedByName}`}
             </p>
+            {l.deleteReason && (
+              <p className="mt-1 rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">
+                Sabab: {l.deleteReason}
+              </p>
+            )}
           </div>
           <button onClick={() => restore(l.id)} disabled={pending} className="btn-secondary py-1.5">
             {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}

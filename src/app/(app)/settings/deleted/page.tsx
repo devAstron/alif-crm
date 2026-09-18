@@ -21,6 +21,7 @@ export default async function DeletedLeadsPage() {
           phone: l.phone,
           deletedAt: l.deletedAt,
           deletedByName: l.deletedBy?.name ?? null,
+          deleteReason: l.deleteReason,
         }))}
       />
     </div>
