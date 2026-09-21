@@ -15,6 +15,7 @@ import {
   LogOut,
   Bell,
   Users,
+  Undo2,
   type LucideIcon,
 } from "lucide-react";
 import type { NavItem } from "@/lib/navigation";
@@ -30,6 +31,7 @@ const ICONS: Record<string, LucideIcon> = {
   Target,
   Settings,
   Users,
+  Undo2,
 };
 
 function Brand() {

@@ -53,7 +53,7 @@ export async function getCampaignStats(start: Date, end: Date): Promise<Campaign
   // aks holda ilgari tushib shu davrda to'langan/sifatli bo'lgan lead hech
   // qaysi kampaniyaga yozilmay qoladi (leads pastda createdAt, qualified
   // qualifiedAt, sales/revenue paidAt bo'yicha — har biri mustaqil).
-  const [leads, payments] = await Promise.all([
+  const [leads, payments, refunds] = await Promise.all([
     prisma.lead.findMany({
       where: { deletedAt: null, OR: [{ createdAt: range }, { paidAt: range }, { qualifiedAt: range }] },
       select: {
@@ -69,8 +69,19 @@ export async function getCampaignStats(start: Date, end: Date): Promise<Campaign
       where: { paidAt: range, lead: { deletedAt: null } },
       _sum: { amount: true },
     }),
+    // Shu davrda qaytarilgan summalar — o'sha davrning tushumidan ayriladi
+    // (qaytarish sodir bo'lgan kunga qarab, to'lov qilingan kundan mustaqil).
+    prisma.refund.groupBy({
+      by: ["leadId"],
+      where: { refundedAt: range, lead: { deletedAt: null } },
+      _sum: { amount: true },
+    }),
   ]);
   const revByLead = new Map(payments.map((p) => [p.leadId, Number(p._sum.amount ?? 0n)]));
+  for (const r of refunds) {
+    const refunded = Number(r._sum.amount ?? 0n);
+    revByLead.set(r.leadId, (revByLead.get(r.leadId) ?? 0) - refunded);
+  }
 
   const spend: SpendMaps = { campaign: new Map(), adset: new Map(), ad: new Map() };
   let hasSpendData = false;

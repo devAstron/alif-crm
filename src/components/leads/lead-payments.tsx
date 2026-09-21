@@ -2,11 +2,20 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Loader2, CircleDollarSign, Pencil, Trash2, Check, X, Paperclip, Eye } from "lucide-react";
+import { Plus, Loader2, CircleDollarSign, Pencil, Trash2, Check, X, Paperclip, Eye, Undo2 } from "lucide-react";
 import { addPaymentAction, updatePaymentAction, deletePaymentAction } from "@/lib/actions/payment-actions";
 import { attachReceiptAction, removeReceiptAction, getReceiptUrlAction } from "@/lib/actions/receipt-actions";
+import { createRefundAction } from "@/lib/actions/refund-actions";
 import { formatSom } from "@/lib/serialize";
 import { formatTashkent } from "@/lib/datetime";
+
+export interface RefundRow {
+  id: string;
+  amount: number;
+  reason: string;
+  refundedAt: Date;
+  createdByName: string | null;
+}
 
 export interface PaymentRow {
   id: string;
@@ -15,6 +24,7 @@ export interface PaymentRow {
   paidAt: Date;
   createdByName: string | null;
   hasReceipt: boolean;
+  refunds: RefundRow[];
 }
 
 export function LeadPayments({
@@ -23,12 +33,14 @@ export function LeadPayments({
   total,
   readOnly = false,
   receiptsEnabled = false,
+  canRefund = false,
 }: {
   leadId: string;
   payments: PaymentRow[];
   total: number;
   readOnly?: boolean;
   receiptsEnabled?: boolean;
+  canRefund?: boolean;
 }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -44,6 +56,11 @@ export function LeadPayments({
   const uploadTargetRef = useRef<string | null>(null);
   const [receiptBusyId, setReceiptBusyId] = useState<string | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
+
+  const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [refundError, setRefundError] = useState<string | null>(null);
 
   function submit() {
     setError(null);
@@ -125,6 +142,42 @@ export function LeadPayments({
     });
   }
 
+  function openRefund(paymentId: string, remaining: number) {
+    setRefundingId(paymentId);
+    setRefundAmount(String(remaining));
+    setRefundReason("");
+    setRefundError(null);
+  }
+
+  function closeRefund() {
+    setRefundingId(null);
+    setRefundAmount("");
+    setRefundReason("");
+    setRefundError(null);
+  }
+
+  function submitRefund(paymentId: string) {
+    const num = Number(refundAmount);
+    if (!num || num <= 0) {
+      setRefundError("To'g'ri summa kiriting");
+      return;
+    }
+    if (!refundReason.trim()) {
+      setRefundError("Qaytarish sababini yozish shart");
+      return;
+    }
+    setRefundError(null);
+    startTransition(async () => {
+      const res = await createRefundAction({ paymentId, amount: Math.trunc(num), reason: refundReason });
+      if (res.ok) {
+        closeRefund();
+        router.refresh();
+      } else {
+        setRefundError(res.error ?? "Xatolik");
+      }
+    });
+  }
+
   return (
     <div className="card p-5">
       {receiptsEnabled && (
@@ -190,7 +243,14 @@ export function LeadPayments({
                     <CircleDollarSign className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-900">{formatSom(p.amount)}</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {formatSom(p.amount)}
+                      {refundedOf(p) > 0 && (
+                        <span className="ml-1.5 text-xs font-normal text-red-600">
+                          (−{formatSom(refundedOf(p))} qaytarilgan)
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-slate-400">
                       {formatTashkent(p.paidAt)}
                       {p.createdByName && ` · ${p.createdByName}`}
@@ -231,6 +291,13 @@ export function LeadPayments({
                     </>
                   )}
 
+                  {canRefund && remainingOf(p) > 0 && (
+                    <button onClick={() => openRefund(p.id, remainingOf(p))} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50" title="Pul qaytarish">
+                      <Undo2 className="h-3.5 w-3.5" />
+                      Qaytarish
+                    </button>
+                  )}
+
                   {!readOnly && (
                     <>
                       <button onClick={() => { setEditId(p.id); setEditAmount(String(p.amount)); setEditNote(p.note ?? ""); }} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" title="Tahrirlash">
@@ -243,10 +310,52 @@ export function LeadPayments({
                   )}
                 </div>
               )}
+
+              {p.refunds.length > 0 && (
+                <ul className="ml-11 mt-1.5 space-y-1">
+                  {p.refunds.map((r) => (
+                    <li key={r.id} className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">
+                      Qaytarildi: {formatSom(r.amount)} · {formatTashkent(r.refundedAt)}
+                      {r.createdByName && ` · ${r.createdByName}`}
+                      <br />Sabab: {r.reason}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {refundingId === p.id && (
+                <div className="ml-11 mt-2 space-y-2 rounded-lg border border-red-100 bg-red-50/50 p-3">
+                  <div>
+                    <label className="label">Qaytariladigan summa (so&apos;m)</label>
+                    <input type="number" min={0} step={1000} max={remainingOf(p)} className="input" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
+                    <p className="mt-0.5 text-xs text-slate-400">Qolgan: {formatSom(remainingOf(p))}</p>
+                  </div>
+                  <div>
+                    <label className="label">Qaytarish sababi *</label>
+                    <textarea className="input min-h-16" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} placeholder="Masalan: mijoz kursdan voz kechdi" autoFocus />
+                  </div>
+                  {refundError && <p className="text-sm text-red-600">{refundError}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={() => submitRefund(p.id)} disabled={pending || !refundReason.trim()} className="btn-danger flex-1 py-1.5 text-sm">
+                      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                      Qaytarish
+                    </button>
+                    <button onClick={closeRefund} className="btn-secondary py-1.5 text-sm"><X className="h-4 w-4" /></button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>
       )}
     </div>
   );
+}
+
+function refundedOf(p: PaymentRow): number {
+  return p.refunds.reduce((s, r) => s + r.amount, 0);
+}
+
+function remainingOf(p: PaymentRow): number {
+  return p.amount - refundedOf(p);
 }

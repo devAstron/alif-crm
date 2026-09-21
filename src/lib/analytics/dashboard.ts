@@ -8,9 +8,10 @@ export interface DashboardData {
   byStage: Record<string, number>; // slug -> count (range leadlari, joriy bosqich)
   qualifiedCount: number; // sifatli lid (qualifiedAt belgilangan)
   salesCount: number;
-  revenue: number;
+  revenue: number; // sof tushum: shu davr to'lovlari - shu davr qaytarishlari
   fullPaymentSum: number;
   partialPaymentSum: number;
+  refundedTotal: number; // shu davrda qaytarilgan summa (refundedAt bo'yicha)
   conversion: number;
   funnel: { slug: string; name: string; count: number }[];
   operators: OperatorStat[];
@@ -52,9 +53,11 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     revenueAgg,
     fullAgg,
     partialAgg,
+    refundAgg,
     opRaw,
     salesByOp,
     revenueByOpRaw,
+    refundByOpRaw,
     operators,
   ] = await Promise.all([
     prisma.lead.groupBy({ by: ["stageId"], where: stageActivityLeadWhere, _count: { _all: true } }),
@@ -86,6 +89,14 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
       where: { paidAt: { gte: start, lte: end }, kind: "PARTIAL", lead: { deletedAt: null } },
       _sum: { amount: true },
     }),
+    // Qaytarilgan summa — qaytarish SODIR BO'LGAN kunga qarab (refundedAt),
+    // to'lov qilingan kundan mustaqil ("kunlik kassa oqimi" mezoni — bugungi
+    // kirim va bugungi chiqim alohida hisoblanadi, o'tgan kunlar tarixi
+    // qayta yozilmaydi).
+    prisma.refund.aggregate({
+      where: { refundedAt: { gte: start, lte: end }, lead: { deletedAt: null } },
+      _sum: { amount: true },
+    }),
     // Operator statistikasi (Rad etilgan/Kutilmoqda/Qisman ustunlari) — shu
     // davrda faoliyat bo'lgan (stageActivityWhere) leadlar bo'yicha, joriy
     // biriktirilgan operator kesimida.
@@ -104,6 +115,11 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     // Operator tushumi — paidAt bo'yicha, leadning biriktirilgan operatoriga qarab
     prisma.payment.findMany({
       where: { paidAt: { gte: start, lte: end }, lead: { assignedToId: { not: null }, deletedAt: null } },
+      select: { amount: true, lead: { select: { assignedToId: true } } },
+    }),
+    // Operator tushumidan ayiriladigan qaytarishlar — refundedAt bo'yicha
+    prisma.refund.findMany({
+      where: { refundedAt: { gte: start, lte: end }, lead: { assignedToId: { not: null }, deletedAt: null } },
       select: { amount: true, lead: { select: { assignedToId: true } } },
     }),
     prisma.user.findMany({ where: { role: "OPERATOR" }, select: { id: true, name: true } }),
@@ -170,6 +186,13 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     const stat = opMap.get(opId);
     if (stat) stat.revenue += Number(p.amount);
   }
+  // Qaytarishlar — o'sha operatorning tushumidan ayiriladi (refundedAt bo'yicha)
+  for (const r of refundByOpRaw) {
+    const opId = r.lead.assignedToId;
+    if (!opId) continue;
+    const stat = opMap.get(opId);
+    if (stat) stat.revenue -= Number(r.amount);
+  }
   // Sifatli lid (qualifiedAt) — alohida hisoblanadi
   for (const row of qualifiedByOp) {
     if (!row.assignedToId) continue;
@@ -185,9 +208,10 @@ export async function getDashboardData(start: Date, end: Date): Promise<Dashboar
     byStage,
     qualifiedCount,
     salesCount,
-    revenue: Number(revenueAgg._sum.amount ?? 0n),
+    revenue: Number(revenueAgg._sum.amount ?? 0n) - Number(refundAgg._sum.amount ?? 0n),
     fullPaymentSum: Number(fullAgg._sum.amount ?? 0n),
     partialPaymentSum: Number(partialAgg._sum.amount ?? 0n),
+    refundedTotal: Number(refundAgg._sum.amount ?? 0n),
     conversion,
     funnel,
     operators: Array.from(opMap.values()).sort((a, b) => b.revenue - a.revenue || b.sales - a.sales),

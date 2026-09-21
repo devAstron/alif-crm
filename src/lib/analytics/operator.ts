@@ -62,13 +62,15 @@ export async function getOperatorDashboardData(
     deletedAt: null,
   };
 
-  const [byStageRaw, assignedTotal, qualifiedCount, salesCount, revenueAgg, assignedLeads, paidLeads] =
+  const [byStageRaw, assignedTotal, qualifiedCount, salesCount, revenueAgg, refundAgg, assignedLeads, paidLeads] =
     await Promise.all([
       prisma.lead.groupBy({ by: ["stageId"], where: stageActivityScope, _count: { _all: true } }),
       prisma.lead.count({ where: cohort }),
       prisma.lead.count({ where: qualifiedScope }),
       prisma.lead.count({ where: salesScope }),
       prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end }, lead: { assignedToId: operatorId, deletedAt: null } }, _sum: { amount: true } }),
+      // Qaytarishlar — refundedAt bo'yicha, shu operatorning tushumidan ayiriladi
+      prisma.refund.aggregate({ where: { refundedAt: { gte: start, lte: end }, lead: { assignedToId: operatorId, deletedAt: null } }, _sum: { amount: true } }),
       prisma.lead.findMany({ where: cohort, select: { assignedAt: true } }),
       prisma.lead.findMany({ where: salesScope, select: { paidAt: true } }),
     ]);
@@ -130,7 +132,7 @@ export async function getOperatorDashboardData(
     byStage,
     qualifiedCount,
     salesCount,
-    revenue: Number(revenueAgg._sum.amount ?? 0n),
+    revenue: Number(revenueAgg._sum.amount ?? 0n) - Number(refundAgg._sum.amount ?? 0n),
     conversion,
     funnel,
     stageDistribution,

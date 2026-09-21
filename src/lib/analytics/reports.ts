@@ -36,7 +36,7 @@ function metrics(adSpendUsd: number, adSpendUzs: number, leads: number, sales: n
  * kiritilgan) zaxira sifatida ishlatiladi, kurs bilan $ ga o'giriladi.
  */
 export async function getReportData(start: Date, end: Date): Promise<ReportData> {
-  const [createdLeads, paidLeads, payments, insights, reports] = await Promise.all([
+  const [createdLeads, paidLeads, payments, refunds, insights, reports] = await Promise.all([
     prisma.lead.findMany({
       where: { createdAt: { gte: start, lte: end }, deletedAt: null },
       select: { createdAt: true },
@@ -48,6 +48,11 @@ export async function getReportData(start: Date, end: Date): Promise<ReportData>
     prisma.payment.findMany({
       where: { paidAt: { gte: start, lte: end }, lead: { deletedAt: null } },
       select: { amount: true, paidAt: true },
+    }),
+    // Qaytarishlar — qaytarish sodir bo'lgan kunning tushumidan ayiriladi
+    prisma.refund.findMany({
+      where: { refundedAt: { gte: start, lte: end }, lead: { deletedAt: null } },
+      select: { amount: true, refundedAt: true },
     }),
     prisma.adInsight.findMany({
       where: { level: "campaign", date: { gte: tashkentDbDate(start), lte: tashkentDbDate(end) } },
@@ -75,6 +80,10 @@ export async function getReportData(start: Date, end: Date): Promise<ReportData>
   for (const p of payments) {
     const k = tashkentDateKey(p.paidAt);
     revenueByDay.set(k, (revenueByDay.get(k) ?? 0) + Number(p.amount));
+  }
+  for (const r of refunds) {
+    const k = tashkentDateKey(r.refundedAt);
+    revenueByDay.set(k, (revenueByDay.get(k) ?? 0) - Number(r.amount));
   }
 
   // Facebook'dan (AdInsight, kampaniya darajasi) — asosiy manba

@@ -15,6 +15,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/reports", label: "Hisobotlar", icon: "BarChart3", roles: ["ADMIN", "TARGETOLOG"] },
   { href: "/operators", label: "Operatorlar", icon: "Users", roles: ["ADMIN"] },
   { href: "/targetolog", label: "Targetolog", icon: "Target", roles: ["ADMIN", "TARGETOLOG"] },
+  { href: "/refunds", label: "Pul qaytarish", icon: "Undo2", roles: ["ADMIN"] },
   { href: "/settings", label: "Sozlamalar", icon: "Settings", roles: ["ADMIN"] },
 ];
 

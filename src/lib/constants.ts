@@ -63,6 +63,7 @@ export const AUDIT = {
   LEAD_RESTORE: "lead.restore",
   PAYMENT_CREATE: "payment.create",
   PAYMENT_UPDATE: "payment.update",
+  REFUND_CREATE: "refund.create",
   TASK_CREATE: "task.create",
   TASK_UPDATE: "task.update",
   COMMENT_CREATE: "comment.create",

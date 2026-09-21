@@ -71,7 +71,10 @@ export default async function LeadDetailPage({
     prisma.payment.findMany({
       where: { leadId: id },
       orderBy: { paidAt: "desc" },
-      include: { createdBy: { select: { name: true } } },
+      include: {
+        createdBy: { select: { name: true } },
+        refunds: { orderBy: { refundedAt: "desc" }, include: { createdBy: { select: { name: true } } } },
+      },
     }),
     user.role === "ADMIN"
       ? prisma.user.findMany({
@@ -109,6 +112,13 @@ export default async function LeadDetailPage({
     paidAt: p.paidAt,
     createdByName: p.createdBy?.name ?? null,
     hasReceipt: !!p.proofUrl,
+    refunds: p.refunds.map((r) => ({
+      id: r.id,
+      amount: Number(r.amount),
+      reason: r.reason,
+      refundedAt: r.refundedAt,
+      createdByName: r.createdBy?.name ?? null,
+    })),
   }));
 
   const taskItems = tasks.map((t) => ({
@@ -339,6 +349,7 @@ export default async function LeadDetailPage({
             total={totalPaid}
             readOnly={readOnly}
             receiptsEnabled={isR2Configured()}
+            canRefund={user.role === "ADMIN"}
           />
           <LeadTasks leadId={lead.id} tasks={taskItems} readOnly={readOnly} />
         </div>

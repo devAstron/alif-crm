@@ -114,6 +114,7 @@ model User {
   createdTasks    Task[]           @relation("TaskCreatedBy")
   assignedTasks   Task[]           @relation("TaskAssignedTo")
   payments        Payment[]
+  refunds         Refund[]
   notifications   Notification[]
   auditLogs       AuditLog[]
 
@@ -281,6 +282,7 @@ model Lead {
   comments          Comment[]
   tasks             Task[]
   payments          Payment[]
+  refunds           Refund[]
   customFieldValues CustomFieldValue[]
   capiEvents        CapiEvent[]
   notifications     Notification[]
@@ -381,11 +383,34 @@ model Payment {
   createdById String
   createdAt   DateTime    @default(now())
 
-  lead      Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  createdBy User @relation(fields: [createdById], references: [id])
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+  refunds   Refund[]
 
   @@index([leadId])
   @@index([paidAt])
+}
+
+// Pul qaytarish — bitta to'lovga (Payment) tegishli, to'liq yoki qisman
+// qaytarilishi mumkin (shuning uchun Payment ustiga flag emas, alohida
+// jadval — bitta to'lovga bir nechta qaytarish yozuvi bo'lishi mumkin).
+model Refund {
+  id          String   @id @default(cuid())
+  paymentId   String
+  leadId      String
+  amount      BigInt // qaytarilgan summa, so'm
+  reason      String // qaytarish sababi (majburiy)
+  refundedAt  DateTime @default(now())
+  createdById String
+  createdAt   DateTime @default(now())
+
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  lead      Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User    @relation(fields: [createdById], references: [id])
+
+  @@index([paymentId])
+  @@index([leadId])
+  @@index([refundedAt])
 }
 
 // ---------------- Bildirishnoma ----------------

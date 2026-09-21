@@ -55,8 +55,9 @@ export async function getLeadDetail(user: { id: string; role: Role }, id: string
   }
 
   // To'lovlar yig'indisi + telefon tarixi — parallel (round-trip'ni kamaytirish)
-  const [paidAgg, history] = await Promise.all([
+  const [paidAgg, refundAgg, history] = await Promise.all([
     prisma.payment.aggregate({ where: { leadId: id }, _sum: { amount: true } }),
+    prisma.refund.aggregate({ where: { leadId: id }, _sum: { amount: true } }),
     prisma.lead.findMany({
       where: { phone: lead.phone, id: { not: id }, deletedAt: null },
       orderBy: { createdAt: "desc" },
@@ -72,7 +73,8 @@ export async function getLeadDetail(user: { id: string; role: Role }, id: string
 
   return {
     lead,
-    totalPaid: Number(paidAgg._sum.amount ?? 0n),
+    // Sof to'langan summa — qaytarilgan (Refund) summalar ayrilgan holda.
+    totalPaid: Number((paidAgg._sum.amount ?? 0n) - (refundAgg._sum.amount ?? 0n)),
     history: history.map((h) => ({
       id: h.id,
       createdAt: h.createdAt,
@@ -93,7 +95,7 @@ export async function getBoardData(
   const pipeline = await getDefaultPipeline();
   const where = buildLeadWhere(user, filters);
 
-  const [leads, counts, payments] = await Promise.all([
+  const [leads, counts, payments, refunds] = await Promise.all([
     prisma.lead.findMany({
       where,
       orderBy: { stageChangedAt: "desc" },
@@ -127,9 +129,18 @@ export async function getBoardData(
       where: { lead: where },
       _sum: { amount: true },
     }),
+    // Qaytarilgan summalar — kartada sof (qaytarilgandan keyingi) summa ko'rinishi uchun
+    prisma.refund.groupBy({
+      by: ["leadId"],
+      where: { lead: where },
+      _sum: { amount: true },
+    }),
   ]);
 
-  const paidByLead = new Map(payments.map((p) => [p.leadId, Number(p._sum.amount ?? 0n)]));
+  const refundedByLead = new Map(refunds.map((r) => [r.leadId, Number(r._sum.amount ?? 0n)]));
+  const paidByLead = new Map(
+    payments.map((p) => [p.leadId, Number(p._sum.amount ?? 0n) - (refundedByLead.get(p.leadId) ?? 0)]),
+  );
 
   const cards: LeadCard[] = leads.map((l) => ({
     id: l.id,
