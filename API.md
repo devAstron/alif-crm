@@ -179,3 +179,78 @@ curl -X POST "{APP_URL}/api/integrations/leads" \
 - **Headers**: `X-API-Key: <CRM_API_KEY>`, `Content-Type: application/json`
 - **Body**: yuqoridagi maydonlarni Facebook Lead Ads maydonlariga map qiling (`lead_id` → Facebook "Lead ID", `campaign_name` → "Campaign name" va h.k.).
 - Idempotency uchun `Idempotency-Key` header'ga Facebook "Lead ID"ni qo'ying.
+
+---
+
+# Call Center Operatori holatini o'zgartirish API (Yoqish / O'chirish)
+
+Operatorlar hisobini (account) vaqtincha nofaol qilish (o'chirish) yoki qayta faollashtirish (yoqish) uchun endpoint.
+
+## Endpoint
+
+```
+POST {APP_URL}/api/operators/status
+```
+
+## Autentifikatsiya
+
+```
+X-API-Key: <CRM_API_KEY>
+```
+yoki
+```
+Authorization: Bearer <CRM_API_KEY>
+```
+*(yoki brauzer orqali tizimga kirgan Admin sessiyasi)*
+
+## Maydon parametrlari (JSON body)
+
+| Maydon | Turi | Tavsif |
+|---|---|---|
+| `login` | string | Operatorning tizimdagi logini (masalan: `"operator1"`) *(id bo'lmasa majburiy)* |
+| `id` | string | Operatorning User ID si (cuid) *(login bo'lmasa majburiy)* |
+| `isActive` | boolean | `true` (yoqish / faollashtirish) yoki `false` (o'chirish / nofaol qilish) |
+| `action` | string | Muqobil variant: `"activate"`, `"deactivate"`, `"toggle"` |
+
+> 🔒 Eslatma: Hisob nofaol qilinganda (`isActive: false`), ushbu operatorning barcha faol sessiyalari avtomatik ravishda bekor qilinadi (tizimdan chiqarib yuboriladi) va amal audit jurnaliga yoziladi.
+
+### Misollar:
+
+**Operatorni o'chirish (nofaol qilish):**
+```bash
+curl -X POST "{APP_URL}/api/operators/status" \
+  -H "X-API-Key: <CRM_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "login": "operator1",
+    "isActive": false
+  }'
+```
+
+**Operatorni yoqish (faollashtirish):**
+```bash
+curl -X POST "{APP_URL}/api/operators/status" \
+  -H "X-API-Key: <CRM_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "login": "operator1",
+    "isActive": true
+  }'
+```
+
+**Muvaffaqiyatli javob (200 OK):**
+```json
+{
+  "ok": true,
+  "message": "Operator 'Operator Ali' (operator1) hisobi muvaffaqiyatli o'chirildi (nofaol qilindi).",
+  "operator": {
+    "id": "cmum...",
+    "name": "Operator Ali",
+    "login": "operator1",
+    "role": "OPERATOR",
+    "isActive": false,
+    "updatedAt": "2026-09-29T08:45:45.410Z"
+  }
+}
+```
+
