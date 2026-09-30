@@ -20,7 +20,13 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().optional().default(""),
   R2_SECRET_ACCESS_KEY: z.string().optional().default(""),
   R2_BUCKET_NAME: z.string().optional().default(""),
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  // Railway Console kabi vaqtinchalik shell'larda NODE_ENV ba'zan bo'sh qator
+  // ("") sifatida keladi (undefined emas) — shuning uchun bo'sh qatorni ham
+  // "sozlanmagan" deb hisoblab, defaultga tushiramiz.
+  NODE_ENV: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["development", "test", "production"]).default("development"),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);
