@@ -69,3 +69,24 @@ export async function getReceiptViewUrl(key: string): Promise<string> {
 export async function deleteReceipt(key: string): Promise<void> {
   await getClient().send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: key }));
 }
+
+const BACKUPS_PREFIX = "backups/";
+
+/** Zaxira faylni R2'ga yuklaydi (masalan to'liq ma'lumotlar bazasi eksporti). */
+export async function uploadBackupFile(
+  filename: string,
+  bytes: Uint8Array | Buffer,
+  contentType: string,
+): Promise<string> {
+  const key = `${BACKUPS_PREFIX}${filename}`;
+  await getClient().send(
+    new PutObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: key, Body: bytes, ContentType: contentType }),
+  );
+  return key;
+}
+
+/** Zaxira fayl uchun uzoqroq muddatli (standart 24 soat) ko'rish/yuklab olish havolasi. */
+export async function getBackupDownloadUrl(key: string, expiresInSec = 86400): Promise<string> {
+  const cmd = new GetObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: key });
+  return getSignedUrl(getClient(), cmd, { expiresIn: expiresInSec });
+}

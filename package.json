@@ -17,6 +17,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset-data": "tsx scripts/reset-work-data.ts",
+    "db:full-backup": "tsx scripts/full-backup-export.ts",
+    "db:full-reset": "tsx scripts/full-reset.ts",
     "db:backfill-payment-kind": "tsx scripts/backfill-payment-kind.ts",
     "telegram:poll": "tsx scripts/telegram-poll.ts",
     "test": "vitest run",
