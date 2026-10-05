@@ -37,6 +37,7 @@ export async function syncAdInsights(day: Date): Promise<AdSyncResult> {
     let rowCount = 0;
     let fbLeadsTotal = 0;
     let campaignSpendUsd = 0; // faqat "campaign" darajasi — adset/ad bilan qo'sh hisoblanmasligi uchun
+    const syncedKeys = new Set<string>();
 
     for (const level of LEVELS) {
       const insights = await fetchFbInsights(cfg, level, dateKey, dateKey);
@@ -67,9 +68,19 @@ export async function syncAdInsights(day: Date): Promise<AdSyncResult> {
             usdToUzs,
           },
         });
+        syncedKeys.add(`${level}:${row.entityId}`);
         rowCount++;
       }
     }
+
+    // Shu kun uchun avval saqlangan, lekin endi filtrdan o'tmaydigan (sotuv
+    // bo'lmagan) kampaniya qatorlarini o'chiramiz — qayta sinxron kunni to'g'rilaydi.
+    const existing = await prisma.adInsight.findMany({
+      where: { date: dbDate },
+      select: { id: true, level: true, entityId: true },
+    });
+    const staleIds = existing.filter((e) => !syncedKeys.has(`${e.level}:${e.entityId}`)).map((e) => e.id);
+    if (staleIds.length > 0) await prisma.adInsight.deleteMany({ where: { id: { in: staleIds } } });
 
     // CRM lead soni (o'sha kun, Toshkent) — FB bilan solishtirish uchun
     const { start, end } = dayBounds(dateKey);

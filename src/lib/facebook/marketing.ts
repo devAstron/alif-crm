@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/crypto";
+import { isSalesCampaign } from "@/lib/facebook/campaign-filter";
 
 export type AdLevel = "campaign" | "adset" | "ad";
 
@@ -73,6 +74,8 @@ const LEAD_ACTION_PRIORITY = [
 /**
  * Ad account insights'ni berilgan sana oralig'i uchun oladi (level kesimida).
  * since/until — "YYYY-MM-DD" (Toshkent kuni). Sarf USD sentda qaytadi.
+ * Faqat sotuv (lead) kampaniyalari qaytariladi (campaign-filter.ts) — adset/ad
+ * qatorlari ham o'z kampaniyasi nomi bo'yicha saralanadi.
  */
 export async function fetchFbInsights(
   cfg: FbConfig,
@@ -123,7 +126,7 @@ export async function fetchFbInsights(
     url = json.paging?.next ?? "";
   }
 
-  return rows.filter((r) => r.entityId);
+  return rows.filter((r) => r.entityId && isSalesCampaign(r.campaignName));
 }
 
 interface FbInsightApiRow {

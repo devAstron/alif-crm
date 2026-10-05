@@ -75,7 +75,7 @@ export async function testFbConnectionAction(): Promise<ActionResult<{ message: 
     if (!cfg) return { ok: false, error: "Avval Ad Account ID va tokenni saqlang" };
     const today = new Date().toISOString().slice(0, 10);
     const rows = await fetchFbInsights(cfg, "campaign", today, today);
-    return { ok: true, data: { message: `Ulanish muvaffaqiyatli. Bugun ${rows.length} ta kampaniya topildi.` } };
+    return { ok: true, data: { message: `Ulanish muvaffaqiyatli. Bugun ${rows.length} ta sotuv (lead) kampaniyasi topildi.` } };
   } catch (error) {
     return toActionError(error);
   }
