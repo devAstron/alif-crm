@@ -77,7 +77,7 @@ export function CapiSettingsForm({ initial }: { initial: CapiSettingsView }) {
         </label>
         <label className="flex items-center gap-2.5 text-sm text-slate-700">
           <input type="checkbox" className="h-4 w-4 rounded border-slate-300" checked={purchaseEnabled} onChange={(e) => setPurchase(e.target.checked)} />
-          Purchase eventini yuborish (To&apos;lov qildi bosqichida)
+          Purchase eventini yuborish (har bir to&apos;lov uchun, qisman ham — summasi shu to&apos;lov summasi)
         </label>
       </div>
 

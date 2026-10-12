@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/crypto";
 import { getUsdToUzsRate } from "@/lib/fx/rate";
 import { sendCapiEvent, type CapiSettingsResolved, type CapiLeadData } from "./client";
-import type { CapiEventName, Prisma } from "@prisma/client";
+import type { CapiEventName, Lead, Prisma } from "@prisma/client";
 
 /** So'mdagi summani joriy kurs bo'yicha USD'ga aylantiradi (2 kasr). */
 async function somToUsd(valueSom: number): Promise<number> {
@@ -15,8 +15,36 @@ export function metaEventName(kind: CapiEventName): string {
   return kind === "QUALIFIED_LEAD" ? "QualifiedLead" : "Purchase";
 }
 
-function eventIdFor(kind: CapiEventName, leadId: string): string {
-  return `${kind}:${leadId}`;
+function qualifiedEventId(leadId: string): string {
+  return `QUALIFIED_LEAD:${leadId}`;
+}
+
+/** Purchase har bir TO'LOV uchun alohida event — dedup kaliti to'lov ID'si. */
+function purchaseEventId(paymentId: string): string {
+  return `PURCHASE:${paymentId}`;
+}
+
+interface DeliveryRef {
+  eventId: string;
+  paymentId?: string | null;
+}
+
+function toLeadData(lead: Lead, value: number | null): CapiLeadData {
+  return {
+    id: lead.id,
+    name: lead.name,
+    phone: lead.phone,
+    secondPhone: lead.secondPhone,
+    externalLeadId: lead.externalLeadId,
+    fbc: lead.fbc,
+    fbp: lead.fbp,
+    value,
+    profession: lead.profession,
+    languageLevel: lead.arabicLevel,
+    campaignName: lead.campaignName,
+    adName: lead.adName,
+    source: lead.source,
+  };
 }
 
 interface ResolvedSettings extends CapiSettingsResolved {
@@ -40,50 +68,46 @@ export async function getResolvedCapiSettings(): Promise<ResolvedSettings | null
 }
 
 /**
- * Bosqich o'zgarishi natijasida CAPI event yuboradi (QualifiedLead / Purchase).
- * HECH QACHON throw qilmaydi — lead transitionini buzmasligi kerak (§16).
- * Dedup: lead.*SentAt yoki mavjud SUCCESS event bo'lsa qayta yubormaydi.
+ * "Sifatli lid" belgilanganda QualifiedLead event yuboradi.
+ * HECH QACHON throw qilmaydi (§16). Dedup: lead.qualifiedLeadSentAt yoki mavjud SUCCESS event.
  */
-export async function fireCapiForStage(leadId: string, kind: CapiEventName): Promise<void> {
+export async function fireCapiForStage(leadId: string, kind: "QUALIFIED_LEAD"): Promise<void> {
   try {
     const settings = await getResolvedCapiSettings();
-    if (!settings) return;
-    if (kind === "QUALIFIED_LEAD" && !settings.qualifiedLeadEnabled) return;
-    if (kind === "PURCHASE" && !settings.purchaseEnabled) return;
+    if (!settings || !settings.qualifiedLeadEnabled) return;
 
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
-    if (!lead) return;
+    if (!lead || lead.qualifiedLeadSentAt) return;
 
-    // Dedup
-    if (kind === "QUALIFIED_LEAD" && lead.qualifiedLeadSentAt) return;
-    if (kind === "PURCHASE" && lead.purchaseSentAt) return;
-
-    let value: number | null = null;
-    if (kind === "PURCHASE") {
-      const agg = await prisma.payment.aggregate({ where: { leadId }, _sum: { amount: true } });
-      value = await somToUsd(Number(agg._sum.amount ?? 0n)); // USD (Meta uchun)
-    }
-
-    const leadData: CapiLeadData = {
-      id: lead.id,
-      name: lead.name,
-      phone: lead.phone,
-      secondPhone: lead.secondPhone,
-      externalLeadId: lead.externalLeadId,
-      fbc: lead.fbc,
-      fbp: lead.fbp,
-      value,
-      profession: lead.profession,
-      languageLevel: lead.arabicLevel,
-      campaignName: lead.campaignName,
-      adName: lead.adName,
-      source: lead.source,
-    };
-
-    await deliver(kind, leadData, settings);
+    await deliver(kind, toLeadData(lead, null), settings, { eventId: qualifiedEventId(leadId) });
   } catch (e) {
-    // CAPI xatosi transitionni buzmaydi — faqat loglaymiz
+    // CAPI xatosi asosiy amalni buzmaydi — faqat loglaymiz
     console.error(`[CAPI] fireCapiForStage error lead=${leadId} kind=${kind}`, e);
+  }
+}
+
+/**
+ * Har bir to'lov (qisman ham, to'liq ham) uchun alohida Purchase event yuboradi.
+ * Qiymat — AYNAN shu to'lovning summasi (USD): oldingi to'lovlar kiritilmaydi,
+ * chunki ular o'z vaqtida o'z eventi bilan yuborilgan. Masalan 200 ming, keyin
+ * 237 ming to'langan bo'lsa — Meta'ga 200 ming va 237 ming (437 emas) boradi.
+ * HECH QACHON throw qilmaydi. Dedup: eventId = PURCHASE:<paymentId>.
+ */
+export async function firePurchaseForPayment(paymentId: string): Promise<void> {
+  try {
+    const settings = await getResolvedCapiSettings();
+    if (!settings || !settings.purchaseEnabled) return;
+
+    const payment = await prisma.payment.findUnique({ where: { id: paymentId }, include: { lead: true } });
+    if (!payment || payment.lead.deletedAt) return;
+
+    const value = await somToUsd(Number(payment.amount));
+    await deliver("PURCHASE", toLeadData(payment.lead, value), settings, {
+      eventId: purchaseEventId(paymentId),
+      paymentId,
+    });
+  } catch (e) {
+    console.error(`[CAPI] firePurchaseForPayment error payment=${paymentId}`, e);
   }
 }
 
@@ -92,9 +116,10 @@ async function deliver(
   kind: CapiEventName,
   lead: CapiLeadData,
   settings: ResolvedSettings,
+  ref: DeliveryRef,
   isRetry = false,
 ): Promise<void> {
-  const eventId = eventIdFor(kind, lead.id);
+  const { eventId } = ref;
   const metaName = metaEventName(kind);
 
   // Mavjud event (dedup)
@@ -107,6 +132,7 @@ async function deliver(
     leadId: lead.id,
     eventName: kind,
     eventId,
+    paymentId: ref.paymentId ?? null,
     status: result.ok ? "SUCCESS" : "FAILED",
     httpStatus: result.httpStatus ?? undefined,
     requestAt: new Date(),
@@ -142,7 +168,7 @@ async function deliver(
     });
   } else if (result.transient && !isRetry) {
     // Transient xato — bir marta avtomatik qayta urinish
-    await deliver(kind, lead, settings, true);
+    await deliver(kind, lead, settings, ref, true);
   }
 }
 
@@ -155,28 +181,23 @@ export async function retryCapiEvent(capiEventId: string): Promise<{ ok: boolean
 
   let value: number | null = null;
   if (event.eventName === "PURCHASE") {
-    const agg = await prisma.payment.aggregate({ where: { leadId: event.leadId }, _sum: { amount: true } });
-    value = await somToUsd(Number(agg._sum.amount ?? 0n)); // USD (Meta uchun)
+    if (event.paymentId) {
+      // Yangi tartib: shu eventga tegishli to'lov summasi
+      const payment = await prisma.payment.findUnique({ where: { id: event.paymentId } });
+      if (!payment) return { ok: false, error: "To'lov topilmadi (o'chirilgan) — qayta yuborib bo'lmaydi" };
+      value = await somToUsd(Number(payment.amount));
+    } else {
+      // Eski eventlar (to'lovga bog'lanmagan): lead bo'yicha jami to'lov
+      const agg = await prisma.payment.aggregate({ where: { leadId: event.leadId }, _sum: { amount: true } });
+      value = await somToUsd(Number(agg._sum.amount ?? 0n));
+    }
   }
 
   await deliver(
     event.eventName,
-    {
-      id: event.lead.id,
-      name: event.lead.name,
-      phone: event.lead.phone,
-      secondPhone: event.lead.secondPhone,
-      externalLeadId: event.lead.externalLeadId,
-      fbc: event.lead.fbc,
-      fbp: event.lead.fbp,
-      value,
-      profession: event.lead.profession,
-      languageLevel: event.lead.arabicLevel,
-      campaignName: event.lead.campaignName,
-      adName: event.lead.adName,
-      source: event.lead.source,
-    },
+    toLeadData(event.lead, value),
     settings,
+    { eventId: event.eventId, paymentId: event.paymentId },
     true,
   );
 

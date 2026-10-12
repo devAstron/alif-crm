@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { createIncomingLead } from "@/lib/leads/service";
 import { incomingLeadSchema } from "@/lib/leads/schemas";
@@ -7,6 +7,7 @@ import { getStageBySlug } from "@/lib/pipeline";
 import { RequiredFieldsError, ForbiddenError } from "@/lib/errors";
 import { STAGE } from "@/lib/constants";
 import { encryptSecret } from "@/lib/crypto";
+import { tashkentDbDate } from "@/lib/datetime";
 
 // Test telefon oralig'i (+998999...) — normalizePhone bularni o'zgartirmaydi (12 raqam, 998)
 const TEST_PREFIX = "+998999";
@@ -172,6 +173,66 @@ describe("CAPI dedup", () => {
       expect(count).toBe(1);
     } finally {
       await prisma.capiSettings.update({ where: { id: "singleton" }, data: { pixelId: null, accessTokenEnc: null } });
+    }
+  });
+});
+
+describe("CAPI Purchase — har bir to'lov uchun alohida event", () => {
+  it("qisman 200 000, keyin to'liq 237 000 → Meta'ga 200 000 va 237 000 (437 000 emas) yuboriladi", async () => {
+    const RATE = 10_000; // so'm/USD (testda aniq qiymat)
+    const today = tashkentDbDate();
+    const prevRate = await prisma.fxRate.findUnique({ where: { date: today } });
+    await prisma.fxRate.upsert({
+      where: { date: today },
+      create: { date: today, usdToUzs: RATE, source: "test" },
+      update: { usdToUzs: RATE },
+    });
+    await prisma.capiSettings.upsert({
+      where: { id: "singleton" },
+      create: { id: "singleton", pixelId: "1", accessTokenEnc: encryptSecret("t"), qualifiedLeadEnabled: true, purchaseEnabled: true },
+      update: { pixelId: "1", accessTokenEnc: encryptSecret("t"), qualifiedLeadEnabled: true, purchaseEnabled: true },
+    });
+
+    const sent: Array<{ event_name: string; event_id: string; custom_data: { value?: number; currency?: string } }> = [];
+    vi.stubGlobal("fetch", async (_url: string, init?: { body?: string }) => {
+      const body = JSON.parse(init?.body ?? "{}");
+      sent.push(body.data[0]);
+      return new Response(JSON.stringify({ events_received: 1 }), { status: 200 });
+    });
+
+    try {
+      const lead = await makeLead();
+      await changeLeadStage(operator, lead.id, stageIds[STAGE.NEW_LEAD]);
+      await changeLeadStage(operator, lead.id, stageIds[STAGE.PARTIAL_PAYMENT], { paymentAmount: 200_000 });
+      await changeLeadStage(operator, lead.id, stageIds[STAGE.PAID], { paymentAmount: 237_000 });
+
+      const payments = await prisma.payment.findMany({ where: { leadId: lead.id }, orderBy: { createdAt: "asc" } });
+      expect(payments).toHaveLength(2);
+
+      const purchases = sent.filter((e) => e.event_name === "Purchase");
+      expect(purchases.map((e) => e.custom_data.value)).toEqual([20, 23.7]);
+      expect(purchases.every((e) => e.custom_data.currency === "USD")).toBe(true);
+      expect(purchases.map((e) => e.event_id)).toEqual(payments.map((p) => `PURCHASE:${p.id}`));
+
+      const events = await prisma.capiEvent.findMany({ where: { leadId: lead.id, eventName: "PURCHASE" } });
+      expect(events).toHaveLength(2);
+      expect(events.every((e) => e.status === "SUCCESS" && !!e.paymentId)).toBe(true);
+
+      // Dedup: bir xil to'lov uchun qayta chaqirilsa — yangi event yaratilmaydi
+      const { firePurchaseForPayment } = await import("@/lib/capi/service");
+      await firePurchaseForPayment(payments[0].id);
+      expect(await prisma.capiEvent.count({ where: { leadId: lead.id, eventName: "PURCHASE" } })).toBe(2);
+      expect(sent.filter((e) => e.event_name === "Purchase")).toHaveLength(2);
+
+      // Yangi to'lov bo'lmasa (faqat bosqich o'zgargan) — event yuborilmaydi
+      await changeLeadStage(operator, lead.id, stageIds[STAGE.NEW_LEAD]);
+      await changeLeadStage(operator, lead.id, stageIds[STAGE.PAID]);
+      expect(sent.filter((e) => e.event_name === "Purchase")).toHaveLength(2);
+    } finally {
+      vi.unstubAllGlobals();
+      await prisma.capiSettings.update({ where: { id: "singleton" }, data: { pixelId: null, accessTokenEnc: null } });
+      if (prevRate) await prisma.fxRate.update({ where: { date: today }, data: { usdToUzs: prevRate.usdToUzs, source: prevRate.source } });
+      else await prisma.fxRate.delete({ where: { date: today } });
     }
   });
 });

@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
+import { firePurchaseForPayment } from "@/lib/capi/service";
 import { getClientIp } from "@/lib/request";
 import { assertLeadAccess } from "@/lib/leads/access";
 import { AUDIT, STAGE } from "@/lib/constants";
@@ -69,6 +70,9 @@ export async function addPaymentAction(input: {
       body: `${lead.name}: ${formatSom(amount)}`,
       leadId: lead.id,
     });
+
+    // Meta CAPI Purchase — shu to'lov summasi bilan (never throws)
+    await firePurchaseForPayment(payment.id);
 
     revalidatePath(`/leads/${parsed.data.leadId}`);
     return { ok: true };

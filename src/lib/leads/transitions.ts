@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
-import { fireCapiForStage } from "@/lib/capi/service";
+import { firePurchaseForPayment } from "@/lib/capi/service";
 import { formatTashkent } from "@/lib/datetime";
 import { AUDIT, STAGE, STANDARD_LEAD_FIELDS, MIN_PARTIAL_PAYMENT } from "@/lib/constants";
 import { DomainError, ForbiddenError, RequiredFieldsError } from "@/lib/errors";
@@ -363,8 +363,10 @@ export async function changeLeadStage(
       }),
     );
   }
-  // Meta CAPI Purchase (QualifiedLead endi "Sifatli lid" tugmasidan yuboriladi)
-  if (toStage.slug === STAGE.PAID) jobs.push(fireCapiForStage(leadId, "PURCHASE"));
+  // Meta CAPI Purchase — har bir yangi to'lov (qisman ham) uchun, summasi shu to'lov
+  // summasi (QualifiedLead "Sifatli lid" tugmasidan yuboriladi). Yangi to'lov
+  // bo'lmasa (masalan faqat bosqich o'zgargan) — event yuborilmaydi.
+  if (paymentId) jobs.push(firePurchaseForPayment(paymentId));
 
   await Promise.all(jobs);
 

@@ -474,6 +474,7 @@ model CapiEvent {
   leadId      String
   eventName   CapiEventName
   eventId     String        @unique // Deterministik, duplicate oldini oladi
+  paymentId   String? // Purchase uchun: qaysi to'lovga tegishli (eventId = PURCHASE:<paymentId>); eski eventlarda null
   status      CapiStatus    @default(PENDING)
   httpStatus  Int?
   requestAt   DateTime?
@@ -488,6 +489,7 @@ model CapiEvent {
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@index([leadId])
+  @@index([paymentId])
   @@index([status])
   @@index([eventName])
   @@index([createdAt])
