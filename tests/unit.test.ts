@@ -5,6 +5,7 @@ import { formatSom, formatNumber, serializeBigInt } from "@/lib/serialize";
 import { tashkentDayRange, presetRange, tashkentDateKey } from "@/lib/datetime";
 import { buildPayload } from "@/lib/capi/client";
 import { normalizePhone } from "@/lib/phone";
+import { isSalesCampaign } from "@/lib/facebook/campaign-filter";
 
 describe("crypto", () => {
   it("shifrlash va deshifrlash aylanma", () => {
@@ -106,5 +107,21 @@ describe("CAPI payload xavfsizligi", () => {
     expect(event.event_id).toBe("Purchase:lead1");
     expect((event.custom_data as Record<string, unknown>).value).toBe(42.5);
     expect((event.custom_data as Record<string, unknown>).currency).toBe("USD");
+  });
+});
+
+describe("isSalesCampaign (Targetolog/Hisobotlar kampaniya filtri)", () => {
+  it("lead kampaniyalari qo'shiladi", () => {
+    expect(isSalesCampaign("SB - Alif arab tili - CBO 15$ -30.08.2026")).toBe(true);
+    expect(isSalesCampaign("SB - Arab tili - post 50$ ABO - 08.09.2026")).toBe(true);
+    expect(isSalesCampaign("SB - QualLead - 5$ CBO - 07.09.2026")).toBe(true);
+    expect(isSalesCampaign("SB - MOF retarget Alif arab tili  exc - CBO 10$")).toBe(true);
+    expect(isSalesCampaign("sb - ALIF  ARAB   TILI - test")).toBe(true);
+  });
+  it("vakansiya va boshqa maqsadli kampaniyalar qo'shilmaydi", () => {
+    expect(isSalesCampaign("SB - Arab tili Vakansiya - 5$  CBO - adv+ 10.09.2026")).toBe(false);
+    expect(isSalesCampaign("SB - traf IG profil - 10$ ABO")).toBe(false);
+    expect(isSalesCampaign(null)).toBe(false);
+    expect(isSalesCampaign("")).toBe(false);
   });
 });
