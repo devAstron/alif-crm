@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getDashboardData } from "@/lib/analytics/dashboard";
 import { getOperatorDashboardData } from "@/lib/analytics/operator";
+import { getCollectorDashboardData } from "@/lib/analytics/collectors";
 import { presetRange, type DateRangePreset } from "@/lib/datetime";
 import { PageHeader } from "@/components/page-header";
 import { DateFilter } from "@/components/date-filter";
@@ -18,9 +19,32 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
-  const user = await requireRole("ADMIN", "OPERATOR");
+  const user = await requireRole("ADMIN", "OPERATOR", "COLLECTOR");
   const sp = await searchParams;
   const { start, end } = presetRange((sp.range as DateRangePreset) ?? "today", sp.from, sp.to);
+
+  // --- Undiruvchi paneli ---
+  if (user.role === "COLLECTOR") {
+    const c = await getCollectorDashboardData(user.id, start, end);
+    return (
+      <>
+        <PageHeader title="Boshqaruv paneli" subtitle={`Xush kelibsiz, ${user.name}`} />
+        <div className="mb-6">
+          <DateFilter />
+        </div>
+        <h2 className="mb-3 text-sm font-semibold text-slate-700">Undirish</h2>
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Undirilishi kutilmoqda" value={formatNumber(c.waitingLeads)} accent="amber" sub="Qisman to'lov bosqichida (hozir)" />
+          <StatCard label="Yopilgan leadlar" value={formatNumber(c.closedLeads)} accent="green" sub="To'lov qildi deb yopilgan" />
+          <StatCard label="Kiritilgan to'lovlar" value={formatNumber(c.payments)} accent="brand" />
+          <StatCard label="Undirilgan summa" value={formatSom(c.collectedSum)} accent="green" />
+        </div>
+        <p className="text-xs text-slate-400">
+          Yopilgan lead sotuvi leadni qisman to&apos;lovga olgan operatorga yoziladi; sizning ko&apos;rsatkichingiz alohida hisoblanadi.
+        </p>
+      </>
+    );
+  }
 
   // --- Operator paneli ---
   if (user.role === "OPERATOR") {

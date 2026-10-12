@@ -136,7 +136,7 @@ export interface MoveStageInput {
 export async function moveLeadStageAction(
   input: MoveStageInput,
 ): Promise<ActionResult<{ paymentId: string | null }>> {
-  const user = await requireRole("ADMIN", "OPERATOR");
+  const user = await requireRole("ADMIN", "OPERATOR", "COLLECTOR");
   const ip = await getClientIp();
 
   try {

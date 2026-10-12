@@ -43,6 +43,7 @@ export default async function LeadDetailPage({
   const { id } = await params;
   const user = await requireLeadAccess();
   const readOnly = user.role === "TARGETOLOG";
+  const isCollector = user.role === "COLLECTOR";
 
   const [detail, rejectionReasons, processingReasons] = await Promise.all([
     getLeadDetail(user, id),
@@ -226,7 +227,7 @@ export default async function LeadDetailPage({
             {readOnly && lead.qualifiedAt && (
               <span className="badge bg-teal-50 px-3 py-1.5 text-teal-700">Sifatli lid</span>
             )}
-            {!readOnly && (
+            {!readOnly && !isCollector && (
               <QualifyButton leadId={lead.id} qualified={!!lead.qualifiedAt} isAdmin={user.role === "ADMIN"} />
             )}
             <a href={telHref(lead.phone)} className="btn-primary hidden sm:inline-flex">
@@ -237,7 +238,7 @@ export default async function LeadDetailPage({
               <Send className="h-4 w-4" />
               Telegram
             </a>
-            {!readOnly && (<>
+            {!readOnly && !isCollector && (<>
             <LeadEditModal
               lead={{
                 id: lead.id,
@@ -288,7 +289,8 @@ export default async function LeadDetailPage({
                 <LeadStageSelector
                   leadId={lead.id}
                   currentStageId={lead.stageId}
-                  stages={stages}
+                  stages={isCollector ? stages.filter((s) => s.slug === "partial_payment" || s.slug === "paid") : stages}
+                  redirectAfterMove={isCollector ? "/leads" : undefined}
                   rejectionReasons={rejectionReasons}
                   processingReasons={processingReasons}
                   receiptsEnabled={isR2Configured()}
@@ -350,8 +352,9 @@ export default async function LeadDetailPage({
             readOnly={readOnly}
             receiptsEnabled={isR2Configured()}
             canRefund={user.role === "ADMIN"}
+            limited={isCollector}
           />
-          <LeadTasks leadId={lead.id} tasks={taskItems} readOnly={readOnly} />
+          <LeadTasks leadId={lead.id} tasks={taskItems} readOnly={readOnly || isCollector} />
         </div>
         <LeadActivity leadId={lead.id} items={activity} readOnly={readOnly} />
       </div>

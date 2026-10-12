@@ -27,7 +27,7 @@ export async function addPaymentAction(input: {
   note?: string;
   paidAt?: string;
 }): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "OPERATOR");
+  const user = await requireRole("ADMIN", "OPERATOR", "COLLECTOR");
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Xato" };

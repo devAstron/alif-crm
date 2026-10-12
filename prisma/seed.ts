@@ -17,6 +17,7 @@ async function main() {
     { name: "Targetolog", login: "targetolog", password: "target123", role: "TARGETOLOG" as const },
     { name: "Operator Ali", login: "operator1", password: "operator123", role: "OPERATOR" as const },
     { name: "Operator Vali", login: "operator2", password: "operator123", role: "OPERATOR" as const },
+    { name: "Undiruvchi", login: "undiruvchi", password: "undiruvchi123", role: "COLLECTOR" as const },
   ];
 
   for (const u of users) {

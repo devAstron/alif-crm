@@ -19,7 +19,7 @@ export async function addCommentAction(input: {
   leadId: string;
   body: string;
 }): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "OPERATOR");
+  const user = await requireRole("ADMIN", "OPERATOR", "COLLECTOR");
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Xato" };

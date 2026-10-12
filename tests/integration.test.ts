@@ -7,7 +7,10 @@ import { getStageBySlug } from "@/lib/pipeline";
 import { RequiredFieldsError, ForbiddenError } from "@/lib/errors";
 import { STAGE } from "@/lib/constants";
 import { encryptSecret } from "@/lib/crypto";
-import { tashkentDbDate } from "@/lib/datetime";
+import { tashkentDbDate, tashkentDayRange } from "@/lib/datetime";
+import { leadScopeWhere } from "@/lib/leads/scope";
+import { canAccessLead } from "@/lib/leads/access";
+import { getCollectorDashboardData } from "@/lib/analytics/collectors";
 
 // Test telefon oralig'i (+998999...) — normalizePhone bularni o'zgartirmaydi (12 raqam, 998)
 const TEST_PREFIX = "+998999";
@@ -233,6 +236,59 @@ describe("CAPI Purchase — har bir to'lov uchun alohida event", () => {
       await prisma.capiSettings.update({ where: { id: "singleton" }, data: { pixelId: null, accessTokenEnc: null } });
       if (prevRate) await prisma.fxRate.update({ where: { date: today }, data: { usdToUzs: prevRate.usdToUzs, source: prevRate.source } });
       else await prisma.fxRate.delete({ where: { date: today } });
+    }
+  });
+});
+
+describe("Undiruvchi (COLLECTOR)", () => {
+  it("faqat qisman to'lovdagi leadlarni ko'radi/yopadi; sotuv operatorda qoladi; izoh qoladi", async () => {
+    const collectorUser = await prisma.user.create({
+      data: { name: "Test Undiruvchi", login: `test_collector_${Date.now()}`, passwordHash: "x", role: "COLLECTOR" },
+    });
+    const collector = { id: collectorUser.id, role: "COLLECTOR" as const };
+    try {
+      const lead = await makeLead();
+      await changeLeadStage(operator, lead.id, stageIds[STAGE.NEW_LEAD]);
+
+      // Qisman to'lovgacha ko'rinmaydi va tegib bo'lmaydi
+      expect(canAccessLead(collector, { assignedToId: operator.id, stageSlug: STAGE.NEW_LEAD })).toBe(false);
+      await expect(changeLeadStage(collector, lead.id, stageIds[STAGE.PAID], { paymentAmount: 100_000 })).rejects.toBeInstanceOf(ForbiddenError);
+
+      await changeLeadStage(operator, lead.id, stageIds[STAGE.PARTIAL_PAYMENT], { paymentAmount: 200_000 });
+
+      // Doira: faqat qisman to'lov bosqichi
+      const visible = await prisma.lead.findMany({ where: { AND: [leadScopeWhere(collector), { id: lead.id }] } });
+      expect(visible).toHaveLength(1);
+      const other = await makeLead();
+      await changeLeadStage(operator, other.id, stageIds[STAGE.NEW_LEAD]);
+      expect(await prisma.lead.count({ where: { AND: [leadScopeWhere(collector), { id: other.id }] } })).toBe(0);
+
+      // Boshqa bosqichga (masalan Rad etildi) o'tkaza olmaydi
+      await expect(changeLeadStage(collector, lead.id, stageIds[STAGE.REJECTED])).rejects.toBeInstanceOf(ForbiddenError);
+
+      // To'lov qildi deb yopadi
+      const closed = await changeLeadStage(collector, lead.id, stageIds[STAGE.PAID], { paymentAmount: 237_000 });
+      expect(closed.assignedToId).toBe(operator.id); // sotuv qisman to'lovga olgan operatorda
+      expect(closed.paidAt).not.toBeNull();
+
+      const payments = await prisma.payment.findMany({ where: { leadId: lead.id }, orderBy: { createdAt: "asc" } });
+      expect(payments.map((p) => [Number(p.amount), p.kind])).toEqual([[200_000, "PARTIAL"], [237_000, "FULL"]]);
+      expect(payments[1].createdById).toBe(collector.id);
+
+      const comment = await prisma.comment.findFirst({ where: { leadId: lead.id, authorId: collector.id } });
+      expect(comment?.body).toContain("To'lovni undiruvchi yopdi");
+
+      // Yopilgach endi kirish yo'q
+      expect(canAccessLead(collector, { assignedToId: operator.id, stageSlug: STAGE.PAID })).toBe(false);
+
+      // Undiruvchi paneli: yopilgan lead va undirilgan summa
+      const { start, end } = tashkentDayRange(new Date());
+      const dash = await getCollectorDashboardData(collector.id, start, end);
+      expect(dash.closedLeads).toBe(1);
+      expect(dash.collectedSum).toBe(237_000);
+    } finally {
+      await cleanup();
+      await prisma.user.delete({ where: { id: collectorUser.id } });
     }
   });
 });

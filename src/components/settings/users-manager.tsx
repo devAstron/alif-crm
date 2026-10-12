@@ -19,7 +19,7 @@ export interface UserItem {
   isActive: boolean;
 }
 
-const ROLES: Role[] = ["ADMIN", "OPERATOR", "TARGETOLOG"];
+const ROLES: Role[] = ["ADMIN", "OPERATOR", "TARGETOLOG", "COLLECTOR"];
 
 export function UsersManager({ users }: { users: UserItem[] }) {
   const router = useRouter();

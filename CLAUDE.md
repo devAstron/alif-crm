@@ -21,4 +21,4 @@ npm run typecheck && npm run lint && npm run build   # har bosqich oxirida
 ```
 
 ## Seed loginlar (faqat dev)
-admin/admin123 · targetolog/target123 · operator1|operator2 / operator123
+admin/admin123 · targetolog/target123 · operator1|operator2 / operator123 · undiruvchi/undiruvchi123

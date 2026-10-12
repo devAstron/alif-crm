@@ -20,6 +20,7 @@ enum Role {
   ADMIN
   OPERATOR
   TARGETOLOG
+  COLLECTOR // Undiruvchi — qisman to'lov bosqichidagi leadlarni to'liq to'lovga yopadi
 }
 
 enum CustomFieldType {

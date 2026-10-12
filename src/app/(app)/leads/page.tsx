@@ -7,6 +7,7 @@ import { KanbanBoard } from "@/components/leads/kanban-board";
 import { LeadFilters } from "@/components/leads/lead-filters";
 import { CreateLeadModal } from "@/components/leads/create-lead-modal";
 import { isR2Configured } from "@/lib/storage/r2";
+import { STAGE } from "@/lib/constants";
 
 export const metadata = { title: "Mijozlar — Alif CRM" };
 
@@ -28,6 +29,7 @@ export default async function LeadsPage({
   };
   const isAdmin = user.role === "ADMIN";
   const isTargetolog = user.role === "TARGETOLOG";
+  const isCollector = user.role === "COLLECTOR";
   const canSeeAll = isAdmin || isTargetolog;
 
   const [board, rejectionReasons, processingReasons, operators, sourceRows] = await Promise.all([
@@ -54,18 +56,24 @@ export default async function LeadsPage({
     <>
       <PageHeader
         title="Mijozlar"
-        subtitle={isTargetolog ? "Barcha leadlar (faqat ko'rish)" : "Savdo voronkasi — leadni ushlab boshqa bosqichga torting"}
-        actions={!isTargetolog ? <CreateLeadModal stages={board.stages} /> : undefined}
+        subtitle={
+          isTargetolog
+            ? "Barcha leadlar (faqat ko'rish)"
+            : isCollector
+              ? "Qisman to'lov qilgan mijozlar — qolgan to'lovni undirib, \"To'lov qildi\" deb yoping"
+              : "Savdo voronkasi — leadni ushlab boshqa bosqichga torting"
+        }
+        actions={!isTargetolog && !isCollector ? <CreateLeadModal stages={board.stages} /> : undefined}
       />
       <LeadFilters operators={operators} sources={sources} canExport={canSeeAll} isAdmin={canSeeAll} />
       <KanbanBoard
-        stages={board.stages}
+        stages={isCollector ? board.stages.filter((s) => s.slug === STAGE.PARTIAL_PAYMENT) : board.stages}
         initialLeadsByStage={board.leadsByStage}
         countByStage={board.countByStage}
         rejectionReasons={rejectionReasons}
         processingReasons={processingReasons}
         readOnly={isTargetolog}
-        showMeta={canSeeAll}
+        showMeta={canSeeAll || isCollector}
         receiptsEnabled={isR2Configured()}
       />
     </>

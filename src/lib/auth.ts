@@ -31,11 +31,12 @@ export async function requireRole(...roles: Role[]): Promise<SessionUser> {
 }
 
 /**
- * Mijozlar (leadlar) bo'limi uchun: ADMIN yoki OPERATOR.
- * Operator Telegram botni faollashtirmagan bo'lsa — dashboardga yo'naltiriladi.
+ * Mijozlar (leadlar) bo'limi uchun: ADMIN, OPERATOR, TARGETOLOG yoki COLLECTOR.
+ * Operator Telegram botni faollashtirmagan bo'lsa — dashboardga yo'naltiriladi
+ * (undiruvchida vazifa/eslatma yo'q — Telegram talab qilinmaydi).
  */
 export async function requireLeadAccess(): Promise<SessionUser> {
-  const user = await requireRole("ADMIN", "OPERATOR", "TARGETOLOG");
+  const user = await requireRole("ADMIN", "OPERATOR", "TARGETOLOG", "COLLECTOR");
   if (user.role === "OPERATOR") {
     const account = await prisma.telegramAccount.findUnique({
       where: { userId: user.id },

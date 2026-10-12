@@ -7,7 +7,8 @@ import type { Role } from "@prisma/client";
  * Foydalanuvchi leadga kira oladimi?
  *  - ADMIN: har doim
  *  - OPERATOR: o'ziga biriktirilgan yoki "Ko'rib chiqilmagan" bosqichdagi lead
- *  - TARGETOLOG: leadlar bilan ishlamaydi
+ *  - COLLECTOR: faqat "Qisman to'lov qildi" bosqichidagi lead
+ *  - TARGETOLOG: faqat ko'rish
  */
 export function canAccessLead(
   user: { id: string; role: Role },
@@ -18,6 +19,7 @@ export function canAccessLead(
   if (user.role === "OPERATOR") {
     return lead.assignedToId === user.id || lead.stageSlug === STAGE.UNPROCESSED;
   }
+  if (user.role === "COLLECTOR") return lead.stageSlug === STAGE.PARTIAL_PAYMENT;
   return false;
 }
 

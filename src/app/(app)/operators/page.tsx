@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { getDashboardData } from "@/lib/analytics/dashboard";
+import { getCollectorStats } from "@/lib/analytics/collectors";
 import { presetRange, type DateRangePreset } from "@/lib/datetime";
 import { PageHeader } from "@/components/page-header";
 import { DateFilter } from "@/components/date-filter";
@@ -17,7 +18,7 @@ export default async function OperatorsPage({
   await requireRole("ADMIN");
   const sp = await searchParams;
   const { start, end } = presetRange((sp.range as DateRangePreset) ?? "today", sp.from, sp.to);
-  const data = await getDashboardData(start, end);
+  const [data, collectors] = await Promise.all([getDashboardData(start, end), getCollectorStats(start, end)]);
 
   const totalSales = data.operators.reduce((s, o) => s + o.sales, 0);
   const totalRevenue = data.operators.reduce((s, o) => s + o.revenue, 0);
@@ -114,6 +115,39 @@ export default async function OperatorsPage({
           </table>
         </div>
       </div>
+
+      {collectors.length > 0 && (
+        <div className="card mt-6 overflow-hidden">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <h2 className="text-sm font-semibold text-slate-700">Undiruvchilar</h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Qisman to&apos;lovlarni undirib yopganlar. Sotuv operatorga yoziladi, bu yerda faqat undirilgan summa.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                  <th className="px-5 py-2.5 font-medium">Undiruvchi</th>
+                  <th className="px-3 py-2.5 text-center font-medium">Yopilgan leadlar</th>
+                  <th className="px-3 py-2.5 text-center font-medium">Kiritilgan to&apos;lovlar</th>
+                  <th className="px-5 py-2.5 text-right font-medium">Undirilgan summa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {collectors.map((c) => (
+                  <tr key={c.id} className="border-b border-slate-50 last:border-0">
+                    <td className="px-5 py-3 font-medium text-slate-800">{c.name}</td>
+                    <td className="px-3 py-3 text-center text-green-600">{c.closedLeads}</td>
+                    <td className="px-3 py-3 text-center text-slate-600">{c.payments}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right font-semibold text-slate-800">{formatSom(c.collectedSum)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <p className="mt-4 text-xs text-slate-400">
         Faoliyat = shu davrda operatorga tegishli leadning bosqichi o&apos;zgargan (yoki tushgan/biriktirilgan) soni ·

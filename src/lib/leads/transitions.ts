@@ -142,6 +142,16 @@ export async function changeLeadStage(
     }
   }
 
+  // Undiruvchi faqat "Qisman to'lov qildi" → "To'lov qildi" o'tkazishi mumkin
+  if (user.role === "COLLECTOR") {
+    if (fromStage?.slug !== STAGE.PARTIAL_PAYMENT) {
+      throw new ForbiddenError("Undiruvchi faqat qisman to'lov bosqichidagi leadlar bilan ishlaydi.");
+    }
+    if (toStageId !== lead.stageId && toStage.slug !== STAGE.PAID) {
+      throw new ForbiddenError("Undiruvchi leadni faqat \"To'lov qildi\" bosqichiga o'tkaza oladi.");
+    }
+  }
+
   if (toStageId === lead.stageId) return lead; // o'zgarish yo'q
 
   // --- Prospective holat (extra bilan birlashtirilgan) ---
@@ -360,6 +370,16 @@ export async function changeLeadStage(
         title: isPartial ? "💰 Qisman to'lov" : "💰 To'lov qildi",
         body: `${lead.name}: ${formatSom(paymentAmount)}`,
         leadId,
+      }),
+    );
+  }
+  // Undiruvchi leadni yopsa — lead tarixida izoh qoladi. Sotuv (assignedToId/paidAt)
+  // leadni qisman to'lovga olgan operatorda qoladi — bu yerda o'zgarmaydi.
+  if (user.role === "COLLECTOR" && toStage.slug === STAGE.PAID) {
+    const paidNow = paymentAmount ? `: ${formatSom(paymentAmount)}` : "";
+    jobs.push(
+      prisma.comment.create({
+        data: { leadId, authorId: user.id, body: `To'lovni undiruvchi yopdi${paidNow}` },
       }),
     );
   }

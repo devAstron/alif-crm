@@ -14,9 +14,11 @@ interface Props {
   rejectionReasons: { id: string; name: string }[];
   processingReasons: { id: string; name: string }[];
   receiptsEnabled?: boolean;
+  /** Bosqich o'zgargach shu sahifaga o'tadi (lead endi ro'yxatda/kirish doirasida bo'lmasa) */
+  redirectAfterMove?: string;
 }
 
-export function LeadStageSelector({ leadId, currentStageId, stages, rejectionReasons, processingReasons, receiptsEnabled = false }: Props) {
+export function LeadStageSelector({ leadId, currentStageId, stages, rejectionReasons, processingReasons, receiptsEnabled = false, redirectAfterMove }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState<BoardStage | null>(null);
   const [moving, setMoving] = useState(false);
@@ -46,7 +48,8 @@ export function LeadStageSelector({ leadId, currentStageId, stages, rejectionRea
         fd.set("file", receiptFile);
         await attachReceiptAction(result.data.paymentId, fd);
       }
-      router.refresh();
+      if (redirectAfterMove) router.push(redirectAfterMove);
+      else router.refresh();
       return;
     }
     if (result.code === "required_fields") {

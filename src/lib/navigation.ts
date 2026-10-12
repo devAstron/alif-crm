@@ -9,8 +9,8 @@ export interface NavItem {
 
 /** Rol asosidagi asosiy navigatsiya. */
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Boshqaruv paneli", icon: "LayoutDashboard", roles: ["ADMIN", "OPERATOR"] },
-  { href: "/leads", label: "Mijozlar", icon: "KanbanSquare", roles: ["ADMIN", "OPERATOR", "TARGETOLOG"] },
+  { href: "/dashboard", label: "Boshqaruv paneli", icon: "LayoutDashboard", roles: ["ADMIN", "OPERATOR", "COLLECTOR"] },
+  { href: "/leads", label: "Mijozlar", icon: "KanbanSquare", roles: ["ADMIN", "OPERATOR", "TARGETOLOG", "COLLECTOR"] },
   { href: "/tasks", label: "Vazifalar", icon: "ListChecks", roles: ["ADMIN", "OPERATOR"] },
   { href: "/reports", label: "Hisobotlar", icon: "BarChart3", roles: ["ADMIN", "TARGETOLOG"] },
   { href: "/operators", label: "Operatorlar", icon: "Users", roles: ["ADMIN"] },
@@ -27,4 +27,5 @@ export const ROLE_LABEL: Record<Role, string> = {
   ADMIN: "Administrator",
   OPERATOR: "Operator",
   TARGETOLOG: "Targetolog",
+  COLLECTOR: "Undiruvchi",
 };

@@ -19,7 +19,7 @@ import {
 
 /** To'lovga chek/hujjat biriktirish (ixtiyoriy). Rasm yoki PDF, 10MB gacha. */
 export async function attachReceiptAction(paymentId: string, formData: FormData): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "OPERATOR");
+  const user = await requireRole("ADMIN", "OPERATOR", "COLLECTOR");
   if (!isR2Configured()) return { ok: false, error: "Fayl saqlash sozlanmagan" };
 
   try {
@@ -89,7 +89,7 @@ export async function removeReceiptAction(paymentId: string): Promise<ActionResu
 
 /** Chekni ko'rish uchun qisqa muddatli havola (kirish huquqi tekshirilgach). */
 export async function getReceiptUrlAction(paymentId: string): Promise<ActionResult<{ url: string }>> {
-  const user = await requireRole("ADMIN", "OPERATOR", "TARGETOLOG");
+  const user = await requireRole("ADMIN", "OPERATOR", "TARGETOLOG", "COLLECTOR");
   try {
     const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
     if (!payment) throw new DomainError("not_found", "To'lov topilmadi.");

@@ -11,7 +11,7 @@ import { AUDIT } from "@/lib/constants";
 import { DomainError, toActionError, type ActionResult } from "@/lib/errors";
 import type { Role } from "@prisma/client";
 
-const ROLES = ["ADMIN", "OPERATOR", "TARGETOLOG"] as const;
+const ROLES = ["ADMIN", "OPERATOR", "TARGETOLOG", "COLLECTOR"] as const;
 
 const createSchema = z.object({
   name: z.string().trim().min(1, "Ism kiriting").max(100),

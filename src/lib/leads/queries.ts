@@ -54,6 +54,9 @@ export async function getLeadDetail(user: { id: string; role: Role }, id: string
     if (!allowed) return null;
   }
 
+  // Undiruvchi faqat "Qisman to'lov qildi" bosqichidagi leadni ko'radi
+  if (user.role === "COLLECTOR" && lead.stage.slug !== STAGE.PARTIAL_PAYMENT) return null;
+
   // To'lovlar yig'indisi + telefon tarixi — parallel (round-trip'ni kamaytirish)
   const [paidAgg, refundAgg, history] = await Promise.all([
     prisma.payment.aggregate({ where: { leadId: id }, _sum: { amount: true } }),
