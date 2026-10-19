@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getDefaultPipeline } from "@/lib/pipeline";
 import { STAGE } from "@/lib/constants";
 import { leadScopeWhere } from "./scope";
-import { buildLeadWhere, type LeadFilterParams } from "./filters";
+import { buildLeadWhere, activityRange, type LeadFilterParams } from "./filters";
 import type { Role } from "@prisma/client";
 
 export { leadScopeWhere };
@@ -20,7 +20,8 @@ export interface LeadCard {
   createdAt: Date;
   stageChangedAt: Date;
   callbackAt: Date | null;
-  totalPaid: number;
+  totalPaid: number; // butun vaqt, sof (qaytarilgandan keyin)
+  paidInRange: number | null; // "Bugun/Kecha" filtrida: shu kunda tushgan sof summa (aks holda null)
   qualifiedAt: Date | null;
   processingStatus: string | null;
   rejectionReasonName: string | null;
@@ -97,8 +98,9 @@ export async function getBoardData(
 ) {
   const pipeline = await getDefaultPipeline();
   const where = buildLeadWhere(user, filters);
+  const range = activityRange(filters.datePreset);
 
-  const [leads, counts, payments, refunds] = await Promise.all([
+  const [leads, counts, payments, refunds, paymentsInRange, refundsInRange] = await Promise.all([
     prisma.lead.findMany({
       where,
       orderBy: { stageChangedAt: "desc" },
@@ -138,7 +140,39 @@ export async function getBoardData(
       where: { lead: where },
       _sum: { amount: true },
     }),
+    // "Bugun/Kecha": shu kunda TUSHGAN to'lovlar (Dashboard ham aynan shuni yig'adi: Payment.paidAt)
+    range
+      ? prisma.payment.findMany({
+          where: { paidAt: { gte: range.start, lte: range.end }, lead: where },
+          select: { leadId: true, amount: true, lead: { select: { stageId: true } } },
+        })
+      : Promise.resolve([]),
+    // ...va shu kunda QAYTARILGAN summalar (Refund.refundedAt)
+    range
+      ? prisma.refund.findMany({
+          where: { refundedAt: { gte: range.start, lte: range.end }, lead: where },
+          select: { leadId: true, amount: true, lead: { select: { stageId: true } } },
+        })
+      : Promise.resolve([]),
   ]);
+
+  // Davr bo'yicha: karta, ustun va jami (hammasi bir xil ma'lumotdan)
+  const inRangeByLead = new Map<string, number>();
+  const inRangeByStage: Record<string, number> = {};
+  let receivedGross = 0;
+  let refundedInRange = 0;
+  for (const p of paymentsInRange) {
+    const a = Number(p.amount);
+    receivedGross += a;
+    inRangeByLead.set(p.leadId, (inRangeByLead.get(p.leadId) ?? 0) + a);
+    inRangeByStage[p.lead.stageId] = (inRangeByStage[p.lead.stageId] ?? 0) + a;
+  }
+  for (const r of refundsInRange) {
+    const a = Number(r.amount);
+    refundedInRange += a;
+    inRangeByLead.set(r.leadId, (inRangeByLead.get(r.leadId) ?? 0) - a);
+    inRangeByStage[r.lead.stageId] = (inRangeByStage[r.lead.stageId] ?? 0) - a;
+  }
 
   const refundedByLead = new Map(refunds.map((r) => [r.leadId, Number(r._sum.amount ?? 0n)]));
   const paidByLead = new Map(
@@ -159,6 +193,7 @@ export async function getBoardData(
     stageChangedAt: l.stageChangedAt,
     callbackAt: l.callbackAt,
     totalPaid: paidByLead.get(l.id) ?? 0,
+    paidInRange: range ? (inRangeByLead.get(l.id) ?? 0) : null,
     qualifiedAt: l.qualifiedAt,
     processingStatus: l.processingStatus,
     rejectionReasonName: l.rejectionReason?.name ?? null,
@@ -183,5 +218,14 @@ export async function getBoardData(
     })),
     leadsByStage,
     countByStage,
+    period: range
+      ? {
+          label: range.label,
+          received: receivedGross - refundedInRange, // Dashboard "Sotuv summasi" bilan bir xil
+          paymentsCount: paymentsInRange.length,
+          refunded: refundedInRange,
+          byStage: inRangeByStage,
+        }
+      : null,
   };
 }

@@ -44,6 +44,8 @@ export function stageActivityWhere(start: Date, end: Date): Prisma.LeadWhereInpu
       { assignedAt: range },
       { stageChangedAt: range },
       { payments: { some: { paidAt: range } } },
+      // Pul qaytarish ham "harakat" — qaytarilgan kuni lead shu kunda ko'rinadi
+      { refunds: { some: { refundedAt: range } } },
     ],
   };
 }

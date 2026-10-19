@@ -16,6 +16,13 @@ export interface LeadFilterParams {
   datePreset?: LeadDatePreset; // "today"/"yesterday" — tushgan YOKI o'sha kuni ishlangan
 }
 
+/** "Bugun"/"Kecha" preseti uchun kun oralig'i (Toshkent), boshqa holatda null. */
+export function activityRange(preset?: LeadDatePreset): { start: Date; end: Date; label: string } | null {
+  if (preset !== "today" && preset !== "yesterday") return null;
+  const base = preset === "yesterday" ? new Date(Date.now() - 86_400_000) : new Date();
+  return { ...tashkentDayRange(base), label: preset === "today" ? "Bugun" : "Kecha" };
+}
+
 /** Rol doirasi + foydalanuvchi filtrlaridan Prisma where quradi. */
 export function buildLeadWhere(
   user: { id: string; role: Role },
@@ -40,11 +47,8 @@ export function buildLeadWhere(
   if (params.to) and.push({ createdAt: { lte: dateKeyToUtcEnd(params.to) } });
   // Kun preseti: o'sha kuni TUSHGAN (createdAt) yoki o'sha kuni QABUL QILINGAN
   // (assignedAt) yoki BOSHQA BOSQICHGA O'TKAZILGAN (stageChangedAt) leadlar.
-  if (params.datePreset === "today" || params.datePreset === "yesterday") {
-    const base = params.datePreset === "yesterday" ? new Date(Date.now() - 86_400_000) : new Date();
-    const { start, end } = tashkentDayRange(base);
-    and.push(stageActivityWhere(start, end));
-  }
+  const range = activityRange(params.datePreset);
+  if (range) and.push(stageActivityWhere(range.start, range.end));
   if (params.payment === "any") and.push({ payments: { some: {} } });
   if (params.payment === "none") and.push({ payments: { none: {} } });
 

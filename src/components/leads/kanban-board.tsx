@@ -16,6 +16,7 @@ import { StageChangeModal, type StageChangeExtraInput } from "./stage-change-mod
 import { moveLeadStageAction } from "@/lib/actions/lead-actions";
 import { attachReceiptAction } from "@/lib/actions/receipt-actions";
 import type { LeadCard } from "@/lib/leads/queries";
+import { formatSom } from "@/lib/serialize";
 
 export interface BoardStage {
   id: string;
@@ -34,16 +35,29 @@ interface Props {
   readOnly?: boolean;
   showMeta?: boolean;
   receiptsEnabled?: boolean;
+  /** "Bugun/Kecha" filtri: shu kunda tushgan summalar (ustun bo'yicha) */
+  period?: { label: string; byStage: Record<string, number> } | null;
+}
+
+function ColumnReceived({ label, amount }: { label?: string; amount?: number }) {
+  if (!label || !amount) return null;
+  return (
+    <p className={`mb-1.5 px-1 text-[11px] font-medium ${amount > 0 ? "text-green-700" : "text-red-600"}`}>
+      {label} tushgan: {formatSom(amount)}
+    </p>
+  );
 }
 
 function DraggableCard({
   card,
   onOpen,
   showMeta,
+  periodLabel,
 }: {
   card: LeadCard;
   onOpen: (id: string) => void;
   showMeta: boolean;
+  periodLabel?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: card.id,
@@ -62,7 +76,7 @@ function DraggableCard({
       onClick={() => onOpen(card.id)}
       className={`cursor-grab touch-none active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
     >
-      <LeadCardView card={card} showMeta={showMeta} />
+      <LeadCardView card={card} showMeta={showMeta} periodLabel={periodLabel} />
     </div>
   );
 }
@@ -70,10 +84,14 @@ function DraggableCard({
 function DroppableColumn({
   stage,
   count,
+  received,
+  periodLabel,
   children,
 }: {
   stage: BoardStage;
   count: number;
+  received?: number;
+  periodLabel?: string;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -88,6 +106,7 @@ function DroppableColumn({
           {count}
         </span>
       </div>
+      <ColumnReceived label={periodLabel} amount={received} />
       <div
         ref={setNodeRef}
         className={`flex min-h-32 flex-1 flex-col gap-2 rounded-xl border border-dashed p-2 transition-colors ${
@@ -107,12 +126,16 @@ function StaticColumn({
   cards,
   onOpen,
   showMeta,
+  received,
+  periodLabel,
 }: {
   stage: BoardStage;
   count: number;
   cards: LeadCard[];
   onOpen: (id: string) => void;
   showMeta: boolean;
+  received?: number;
+  periodLabel?: string;
 }) {
   return (
     <div className="flex w-72 shrink-0 flex-col">
@@ -125,10 +148,11 @@ function StaticColumn({
           {count}
         </span>
       </div>
+      <ColumnReceived label={periodLabel} amount={received} />
       <div className="flex min-h-32 flex-1 flex-col gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-2">
         {cards.map((card) => (
           <button key={card.id} onClick={() => onOpen(card.id)} className="text-left">
-            <LeadCardView card={card} showMeta={showMeta} />
+            <LeadCardView card={card} showMeta={showMeta} periodLabel={periodLabel} />
           </button>
         ))}
         {cards.length === 0 && (
@@ -150,7 +174,9 @@ export function KanbanBoard({
   readOnly = false,
   showMeta = false,
   receiptsEnabled = false,
+  period = null,
 }: Props) {
+  const periodLabel = period?.label;
   const router = useRouter();
   const [board, setBoard] = useState(initialLeadsByStage);
   const [counts, setCounts] = useState(countByStage);
@@ -299,9 +325,9 @@ export function KanbanBoard({
           <DndContext id="kanban-dnd" sensors={sensors} onDragEnd={handleDragEnd}>
             <div className="scroll-thin flex gap-4 overflow-x-auto pb-4">
               {stages.map((stage) => (
-                <DroppableColumn key={stage.id} stage={stage} count={counts[stage.id] ?? 0}>
+                <DroppableColumn key={stage.id} stage={stage} count={counts[stage.id] ?? 0} received={period?.byStage[stage.id]} periodLabel={periodLabel}>
                   {(board[stage.id] ?? []).map((card) => (
-                    <DraggableCard key={card.id} card={card} onOpen={openLead} showMeta={showMeta} />
+                    <DraggableCard key={card.id} card={card} onOpen={openLead} showMeta={showMeta} periodLabel={periodLabel} />
                   ))}
                   {(board[stage.id] ?? []).length === 0 && (
                     <p className="px-1 py-4 text-center text-xs text-slate-400">Bo&apos;sh</p>
@@ -320,6 +346,8 @@ export function KanbanBoard({
                 cards={board[stage.id] ?? []}
                 onOpen={openLead}
                 showMeta={showMeta}
+                received={period?.byStage[stage.id]}
+                periodLabel={periodLabel}
               />
             ))}
           </div>
@@ -349,7 +377,7 @@ export function KanbanBoard({
         <div className="flex flex-col gap-2">
           {(board[mobileStage] ?? []).map((card) => (
             <button key={card.id} onClick={() => openLead(card.id)} className="text-left">
-              <LeadCardView card={card} showMeta={showMeta} />
+              <LeadCardView card={card} showMeta={showMeta} periodLabel={periodLabel} />
             </button>
           ))}
           {(board[mobileStage] ?? []).length === 0 && (

@@ -8,6 +8,7 @@ import { LeadFilters } from "@/components/leads/lead-filters";
 import { CreateLeadModal } from "@/components/leads/create-lead-modal";
 import { isR2Configured } from "@/lib/storage/r2";
 import { STAGE } from "@/lib/constants";
+import { formatSom } from "@/lib/serialize";
 
 export const metadata = { title: "Mijozlar — Alif CRM" };
 
@@ -66,7 +67,24 @@ export default async function LeadsPage({
         actions={!isTargetolog && !isCollector ? <CreateLeadModal stages={board.stages} /> : undefined}
       />
       <LeadFilters operators={operators} sources={sources} canExport={canSeeAll} isAdmin={canSeeAll} />
+      {board.period && (
+        <div className="mb-4 rounded-xl border border-green-200 bg-green-50/60 px-4 py-3">
+          <p className="text-sm text-slate-700">
+            {board.period.label} tushgan to&apos;lovlar:{" "}
+            <span className="text-lg font-semibold text-green-700">{formatSom(board.period.received)}</span>
+            <span className="ml-2 text-xs text-slate-500">
+              {board.period.paymentsCount} ta to&apos;lov
+              {board.period.refunded > 0 && ` · qaytarilgan ${formatSom(board.period.refunded)} ayrilgan`}
+            </span>
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Kartadagi &quot;{board.period.label}&quot; — shu kunda tushgan summa, &quot;jami&quot; — mijozning butun vaqt
+            davomidagi to&apos;lovi. Bu raqam Boshqaruv panelidagi &quot;Sotuv summasi&quot; bilan bir xil.
+          </p>
+        </div>
+      )}
       <KanbanBoard
+        period={board.period}
         stages={isCollector ? board.stages.filter((s) => s.slug === STAGE.PARTIAL_PAYMENT) : board.stages}
         initialLeadsByStage={board.leadsByStage}
         countByStage={board.countByStage}

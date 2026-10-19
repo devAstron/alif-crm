@@ -11,6 +11,8 @@ import { tashkentDbDate, tashkentDayRange } from "@/lib/datetime";
 import { leadScopeWhere } from "@/lib/leads/scope";
 import { canAccessLead } from "@/lib/leads/access";
 import { getCollectorDashboardData } from "@/lib/analytics/collectors";
+import { getBoardData } from "@/lib/leads/queries";
+import { getDashboardData } from "@/lib/analytics/dashboard";
 
 // Test telefon oralig'i (+998999...) — normalizePhone bularni o'zgartirmaydi (12 raqam, 998)
 const TEST_PREFIX = "+998999";
@@ -290,6 +292,42 @@ describe("Undiruvchi (COLLECTOR)", () => {
       await cleanup();
       await prisma.user.delete({ where: { id: collectorUser.id } });
     }
+  });
+});
+
+describe("Kanban 'Bugun' va Dashboard bir xil summa ko'rsatadi", () => {
+  it("kecha qisman + bugun qolgani: karta 'bugun'=shu kundagi, 'jami'=butun vaqt; jami Dashboard bilan teng", async () => {
+    const admin = { id: operator.id, role: "ADMIN" as const };
+    const { start, end } = tashkentDayRange(new Date());
+    const yesterday = new Date(start.getTime() - 3_600_000);
+
+    // A: kecha 200 000 qisman, bugun 237 000 bilan yopildi
+    const a = await makeLead();
+    await changeLeadStage(operator, a.id, stageIds[STAGE.NEW_LEAD]);
+    await changeLeadStage(operator, a.id, stageIds[STAGE.PARTIAL_PAYMENT], { paymentAmount: 200_000 });
+    await prisma.payment.updateMany({ where: { leadId: a.id }, data: { paidAt: yesterday } });
+    await changeLeadStage(operator, a.id, stageIds[STAGE.PAID], { paymentAmount: 237_000 });
+    // B: bugun 220 000 qisman
+    const b = await makeLead();
+    await changeLeadStage(operator, b.id, stageIds[STAGE.NEW_LEAD]);
+    await changeLeadStage(operator, b.id, stageIds[STAGE.PARTIAL_PAYMENT], { paymentAmount: 220_000 });
+
+    const board = await getBoardData(admin, { datePreset: "today" });
+    const all = Object.values(board.leadsByStage).flat();
+    const cardA = all.find((c) => c.id === a.id)!;
+    const cardB = all.find((c) => c.id === b.id)!;
+    expect(cardA.totalPaid).toBe(437_000);
+    expect(cardA.paidInRange).toBe(237_000);
+    expect(cardB.totalPaid).toBe(220_000);
+    expect(cardB.paidInRange).toBe(220_000);
+
+    const dash = await getDashboardData(start, end);
+    expect(board.period?.received).toBe(dash.revenue);
+    expect(board.period?.received).toBeGreaterThanOrEqual(457_000);
+    // "Butun davr"da period yo'q, karta eski ko'rinishda
+    const full = await getBoardData(admin, {});
+    expect(full.period).toBeNull();
+    expect(Object.values(full.leadsByStage).flat().every((c) => c.paidInRange === null)).toBe(true);
   });
 });
 

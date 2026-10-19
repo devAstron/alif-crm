@@ -93,10 +93,10 @@ export default async function DashboardPage({
       <h2 className="mb-3 text-sm font-semibold text-slate-700">Sotuvlar</h2>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="Sotuvlar soni" value={formatNumber(data.salesCount)} accent="green" />
-        <StatCard label="Sotuv summasi" value={formatSom(data.revenue)} accent="green" sub="Qaytarishlar ayrilgan (sof)" />
+        <StatCard label="Sotuv summasi" value={formatSom(data.revenue)} accent="green" sub="Shu davrda tushgan pul, qaytarishlar ayrilgan" />
         <StatCard label="Konversiya" value={`${conv}%`} accent="brand" />
-        <StatCard label="To'liq to'lov summasi" value={formatSom(data.fullPaymentSum)} />
-        <StatCard label="Qisman to'lov summasi" value={formatSom(data.partialPaymentSum)} />
+        <StatCard label="To'liq to'lov summasi" value={formatSom(data.fullPaymentSum)} sub="To'lov qildi sifatida kiritilgan to'lovlar" />
+        <StatCard label="Qisman to'lov summasi" value={formatSom(data.partialPaymentSum)} sub="Qisman sifatida kiritilgan to'lovlar" />
         <StatCard label="Qaytarilgan summa" value={formatSom(data.refundedTotal)} accent="red" />
       </div>
 

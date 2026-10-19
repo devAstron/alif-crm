@@ -11,7 +11,16 @@ import { STAGE } from "@/lib/constants";
  * (operator faqat o'z leadlarini ko'radi, ular ortiqcha). Admin/targetolog: hammasi.
  * Bosqichga bog'liq teglar (biriktirilmagan / qayta aloqa vaqti / rad sababi) barcha rollarda.
  */
-export function LeadCardView({ card, showMeta = false }: { card: LeadCardType; showMeta?: boolean }) {
+export function LeadCardView({
+  card,
+  showMeta = false,
+  periodLabel,
+}: {
+  card: LeadCardType;
+  showMeta?: boolean;
+  /** "Bugun"/"Kecha" filtri aktiv bo'lsa — shu kunda tushgan summa ko'rsatiladi */
+  periodLabel?: string;
+}) {
   const isUnprocessed = card.stageSlug === STAGE.UNPROCESSED;
   const isCallback = card.stageSlug === STAGE.CALLBACK;
   const isRejected = card.stageSlug === STAGE.REJECTED;
@@ -77,11 +86,27 @@ export function LeadCardView({ card, showMeta = false }: { card: LeadCardType; s
           <span className="badge bg-amber-50 text-amber-700">Biriktirilmagan</span>
         )}
 
-        {card.totalPaid > 0 && (
-          <span className="badge bg-green-50 text-green-700">
-            <CircleDollarSign className="h-3 w-3" />
-            {formatSom(card.totalPaid)}
-          </span>
+        {card.paidInRange != null ? (
+          <>
+            {card.paidInRange !== 0 && (
+              <span className={`badge ${card.paidInRange > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                <CircleDollarSign className="h-3 w-3" />
+                {periodLabel}: {formatSom(card.paidInRange)}
+              </span>
+            )}
+            {card.totalPaid > 0 && card.totalPaid !== card.paidInRange && (
+              <span className="badge bg-slate-100 text-slate-500" title="Mijozning butun vaqt davomidagi jami to'lovi">
+                jami {formatSom(card.totalPaid)}
+              </span>
+            )}
+          </>
+        ) : (
+          card.totalPaid > 0 && (
+            <span className="badge bg-green-50 text-green-700">
+              <CircleDollarSign className="h-3 w-3" />
+              {formatSom(card.totalPaid)}
+            </span>
+          )
         )}
       </div>
     </div>
